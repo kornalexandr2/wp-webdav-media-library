@@ -36,6 +36,7 @@ class Settings {
 		register_setting( 'wwml_settings_group', 'wwml_login' );
 		register_setting( 'wwml_settings_group', 'wwml_password' );
 		register_setting( 'wwml_settings_group', 'wwml_path' );
+		register_setting( 'wwml_settings_group', 'wwml_proxy_slug' );
 
 		add_settings_section(
 			'wwml_main_section',
@@ -49,6 +50,13 @@ class Settings {
 		add_settings_field( 'wwml_login', __( 'Login', 'wp-webdav-media-library' ), array( $this, 'render_login_field' ), 'wwml-settings', 'wwml_main_section' );
 		add_settings_field( 'wwml_password', __( 'Password', 'wp-webdav-media-library' ), array( $this, 'render_password_field' ), 'wwml-settings', 'wwml_main_section' );
 		add_settings_field( 'wwml_path', __( 'Path', 'wp-webdav-media-library' ), array( $this, 'render_path_field' ), 'wwml-settings', 'wwml_main_section' );
+		add_settings_field( 'wwml_proxy_slug', __( 'Proxy URL Slug', 'wp-webdav-media-library' ), array( $this, 'render_proxy_slug_field' ), 'wwml-settings', 'wwml_main_section' );
+	}
+
+	public function render_proxy_slug_field(): void {
+		$val = get_option( 'wwml_proxy_slug', 'remote-media' );
+		echo '<input type="text" name="wwml_proxy_slug" value="' . esc_attr( $val ) . '" class="regular-text" placeholder="remote-media" />';
+		echo '<p class="description">' . esc_html__( 'Slug used for external file URLs (e.g. yoursite.com/remote-media/file.jpg)', 'wp-webdav-media-library' ) . '</p>';
 	}
 
 	public function render_provider_field(): void {

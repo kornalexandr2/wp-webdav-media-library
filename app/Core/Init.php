@@ -10,6 +10,8 @@ namespace KiSa\WebDavMediaLibrary\Core;
 use KiSa\WebDavMediaLibrary\Admin\Settings;
 use KiSa\WebDavMediaLibrary\Media\Ajax;
 use KiSa\WebDavMediaLibrary\Media\MediaTab;
+use KiSa\WebDavMediaLibrary\Media\Hooks;
+use KiSa\WebDavMediaLibrary\Media\Proxy;
 
 // prevent direct access.
 defined( 'ABSPATH' ) || exit;
@@ -60,5 +62,13 @@ class Init {
 		// Initialize AJAX endpoints.
 		$ajax = new Ajax();
 		$ajax->init();
+
+		// Initialize Hooks.
+		$hooks = new Hooks();
+		$hooks->init();
+
+		// Initialize Proxy.
+		$proxy = new Proxy();
+		$proxy->init();
 	}
 }

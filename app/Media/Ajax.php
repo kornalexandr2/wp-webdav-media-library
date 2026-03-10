@@ -62,38 +62,27 @@ class Ajax {
 		$parse = wp_parse_url( $file_url );
 		$path  = $parse['path'];
 
-		try {
-			$response = $client->get_client()->request( 'GET', $path );
-			if ( 200 !== $response['statusCode'] ) {
-				wp_send_json_error( __( 'Failed to download file from WebDAV', 'wp-webdav-media-library' ) );
-			}
+		// We don't download. We just create a DB entry.
+		$attachment = array(
+			'post_mime_type' => wp_check_filetype( $file_name )['type'],
+			'post_title'     => preg_replace( '/\.[^.]+$/', '', $file_name ),
+			'post_content'   => '',
+			'post_status'    => 'inherit',
+			'guid'           => $file_url, // Original WebDAV URL as GUID
+		);
 
-			// Save to temp file.
-			$tmp_file = wp_tempnam( $file_name );
-			file_put_contents( $tmp_file, $response['body'] );
+		$id = wp_insert_attachment( $attachment, $file_name );
+		if ( ! is_wp_error( $id ) ) {
+			update_post_meta( $id, '_wwml_remote_url', $file_url );
+			
+			// We can't generate full metadata without the file, 
+			// but we can set basic info.
+			update_post_meta( $id, '_wp_attached_file', 'wwml-remote/' . $file_name );
 
-			$file_array = array(
-				'name'     => $file_name,
-				'tmp_name' => $tmp_file,
-			);
-
-			// Do the validation and storage stuff.
-			require_once ABSPATH . 'wp-admin/includes/file.php';
-			require_once ABSPATH . 'wp-admin/includes/media.php';
-			require_once ABSPATH . 'wp-admin/includes/image.php';
-
-			$id = media_handle_sideload( $file_array, 0 );
-
-			if ( is_wp_error( $id ) ) {
-				@unlink( $tmp_file );
-				wp_send_json_error( $id->get_error_message() );
-			}
-
-			$attachment = wp_prepare_attachment_for_js( $id );
-			wp_send_json_success( $attachment );
-
-		} catch ( \Exception $e ) {
-			wp_send_json_error( $e->getMessage() );
+			$attachment_data = wp_prepare_attachment_for_js( $id );
+			wp_send_json_success( $attachment_data );
+		} else {
+			wp_send_json_error( $id->get_error_message() );
 		}
 	}
 
