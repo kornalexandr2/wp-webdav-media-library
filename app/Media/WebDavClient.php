@@ -88,14 +88,17 @@ class WebDavClient {
 			'current_path' => $sub_path,
 		);
 
-		foreach ( $directory_list as $file_name => $props ) {
-			$relative_path = str_replace( $this->base_path, '', $file_name );
-			if ( empty( $relative_path ) || $relative_path === $sub_path || $relative_path === rtrim($sub_path, '/') ) {
+		foreach ( $directory_list as $file_url => $props ) {
+			// Normalize path for comparison
+			$decoded_url = rawurldecode($file_url);
+			$relative_path = str_replace( rtrim($this->base_path, '/'), '', rtrim($decoded_url, '/') );
+			
+			if ( empty( $relative_path ) || $relative_path === rtrim($sub_path, '/') ) {
 				continue; // Skip the directory itself
 			}
 
 			$is_dir = isset( $props['{DAV:}resourcetype'] ) && strpos( $props['{DAV:}resourcetype']->getValue(), 'collection' ) !== false;
-			$basename = basename( $file_name );
+			$basename = basename( $decoded_url );
 
 			if ( $is_dir ) {
 				$listing['dirs'][] = array(
