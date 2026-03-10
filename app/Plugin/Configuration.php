@@ -5,13 +5,13 @@
  * @package external-files-in-media-library
  */
 
-namespace ExternalFilesFromWebDav\Plugin;
+namespace KiSa\WebDavMediaLibrary\Plugin;
 
 // prevent direct access.
 defined( 'ABSPATH' ) || exit;
 
 use ExternalFilesFromAwsS3\AwsS3;
-use ExternalFilesFromWebDav\WebDav;
+use KiSa\WebDavMediaLibrary\WebDav;
 use ExternalFilesInMediaLibrary\Plugin\Configuration_Base;
 use ExternalFilesInMediaLibrary\Services\Services;
 
@@ -79,3 +79,4 @@ class Configuration extends Configuration_Base {
 		update_option( 'eml_disable_plugin_hints', 1 );
 	}
 }
+

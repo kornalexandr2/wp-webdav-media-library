@@ -2,15 +2,17 @@
 /**
  * File to handle support for the WebDAV.
  *
- * @package external-files-from-webdav
+ * @package wp-webdav-media-library
  */
 
-namespace ExternalFilesFromWebDav;
+namespace KiSa\WebDavMediaLibrary;
 
 // prevent direct access.
 defined( 'ABSPATH' ) || exit;
 
-use ExternalFilesFromWebDav\WebDav\Export;
+use KiSa\WebDavMediaLibrary\WebDav\Export;
+use ExternalFilesInMediaLibrary\Dependencies\easySettingsForWordPress\Fields\Select;
+use ExternalFilesInMediaLibrary\Dependencies\easySettingsForWordPress\Fields\Button;
 use ExternalFilesInMediaLibrary\Dependencies\easySettingsForWordPress\Fields\Checkbox;
 use ExternalFilesInMediaLibrary\Dependencies\easySettingsForWordPress\Fields\Password;
 use ExternalFilesInMediaLibrary\Dependencies\easySettingsForWordPress\Fields\Text;
@@ -109,24 +111,189 @@ class WebDav extends Service_Base implements Service {
 		// add settings.
 		add_action( 'init', array( $this, 'init_webdav' ), 30 );
 
+		// ensure cache directory exists.
+		add_action( 'init', array( $this, 'ensure_cache_dir' ) );
+
 		// bail if user has no capability for this service.
 		if ( ! Helper::is_cli() && ! current_user_can( 'efml_cap_' . $this->get_name() ) ) {
 			return;
 		}
 
 		// set title.
-		$this->title = __( 'Choose file(s) from your WebDAV', 'external-files-from-webdav' ); // @phpstan-ignore property.notFound
+		$this->title = __( 'Choose file(s) from your WebDAV', 'wp-webdav-media-library' ); // @phpstan-ignore property.notFound
 
 		// use our own hooks.
 		add_filter( 'efml_protocols', array( $this, 'add_protocol' ) );
-		add_filter( 'efmlwd_service_webdav_hide_file', array( $this, 'prevent_not_allowed_files' ), 10, 3 );
-		add_filter( 'efmlwd_service_webdav_client', array( $this, 'ignore_self_signed_ssl' ) );
-		add_filter( 'efmlwd_service_webdav_path', array( $this, 'set_path' ), 10, 2 );
+		add_filter( 'WWML_service_webdav_hide_file', array( $this, 'prevent_not_allowed_files' ), 10, 3 );
+		add_filter( 'WWML_service_webdav_client', array( $this, 'ignore_self_signed_ssl' ) );
+		add_filter( 'WWML_service_webdav_path', array( $this, 'set_path' ), 10, 2 );
 		add_action( 'efml_export_before_on_service', array( $this, 'enable_unsafe_urls_for_export' ) );
 		add_action( 'efml_proxy_before', array( $this, 'enable_unsafe_urls_for_proxy' ) );
 
 		// use hooks.
 		add_action( 'show_user_profile', array( $this, 'add_user_settings' ) );
+		add_action( 'admin_enqueue_scripts', array( $this, 'admin_scripts' ) );
+		add_action( 'wp_ajax_wwml_test_webdav_connection', array( $this, 'ajax_test_connection' ) );
+		add_action( 'wp_ajax_wwml_preview', array( $this, 'ajax_preview' ) );
+	}
+
+	/**
+	 * Ensure the cache directory exists.
+	 *
+	 * @return void
+	 */
+	public function ensure_cache_dir(): void {
+		$upload_dir = wp_upload_dir();
+		$cache_dir  = $upload_dir['basedir'] . '/wwml-cache';
+
+		if ( ! file_exists( $cache_dir ) ) {
+			wp_mkdir_p( $cache_dir );
+			// Add index.php and .htaccess for security.
+			file_put_contents( $cache_dir . '/index.php', '<?php // Silence is golden' );
+		}
+	}
+
+	/**
+	 * AJAX handler to serve and cache previews.
+	 *
+	 * @return void
+	 */
+	public function ajax_preview(): void {
+		$file_url = sanitize_text_field( $_GET['file'] ?? '' );
+		if ( empty( $file_url ) ) {
+			wp_die();
+		}
+
+		$upload_dir = wp_upload_dir();
+		$cache_key  = md5( $file_url ) . '.jpg';
+		$cache_path = $upload_dir['basedir'] . '/wwml-cache/' . $cache_key;
+		$cache_url  = $upload_dir['baseurl'] . '/wwml-cache/' . $cache_key;
+
+		// If cached file exists, redirect to it.
+		if ( file_exists( $cache_path ) ) {
+			wp_redirect( $cache_url );
+			exit;
+		}
+
+		// Otherwise, download from WebDAV.
+		$fields   = $this->get_field_values();
+		$parse    = wp_parse_url( $file_url );
+		$domain   = $parse['scheme'] . '://' . $parse['host'];
+		$path     = $parse['path'];
+
+		$settings = array(
+			'baseUri'  => $domain,
+			'userName' => $fields['login'],
+			'password' => $fields['password'],
+		);
+
+		try {
+			$client   = $this->get_client( $settings, $domain, $file_url );
+			$response = $client->request( 'GET', $path );
+
+			if ( 200 === $response['statusCode'] ) {
+				$image_data = $response['body'];
+				$editor     = wp_get_image_editor( 'php://memory' );
+
+				// We need to write to a temp file first because wp_get_image_editor doesn't like memory streams sometimes.
+				$tmp_file = wp_tempnam();
+				file_put_contents( $tmp_file, $image_data );
+				
+				$editor = wp_get_image_editor( $tmp_file );
+				if ( ! is_wp_error( $editor ) ) {
+					$editor->resize( 250, 250, true );
+					$editor->save( $cache_path, 'image/jpeg' );
+					unlink( $tmp_file );
+					wp_redirect( $cache_url );
+					exit;
+				}
+				unlink( $tmp_file );
+			}
+		} catch ( \Exception $e ) {
+			// Fail silently and let WP handle the broken image icon.
+		}
+
+		wp_die();
+	}
+
+	/**
+	 * Get the local preview URL.
+	 *
+	 * @param string $file_url The original file URL.
+	 * @return string
+	 */
+	public function get_preview_url( string $file_url ): string {
+		$mime = wp_check_filetype( $file_url );
+		if ( ! str_starts_with( $mime['type'] ?? '', 'image/' ) ) {
+			return '';
+		}
+		
+		return admin_url( 'admin-ajax.php?action=wwml_preview&file=' . urlencode( $file_url ) );
+	}
+
+	/**
+	 * Enqueue admin scripts for settings page.
+	 *
+	 * @param string $hook The current admin page hook.
+	 * @return void
+	 */
+	public function admin_scripts( string $hook ): void {
+		if ( 'settings_page_external-files-in-media-library' !== $hook ) {
+			return;
+		}
+
+		wp_enqueue_script(
+			'wwml-admin-settings',
+			plugin_dir_url( WWML_PLUGIN ) . 'assets/js/admin-settings.js',
+			array( 'jquery' ),
+			WWML_PLUGIN_VERSION,
+			true
+		);
+
+		wp_localize_script( 'wwml-admin-settings', 'wwml_admin', array(
+			'nonce'        => wp_create_nonce( 'wwml_test_conn' ),
+			'text_testing' => __( 'Testing...', 'wp-webdav-media-library' ),
+			'text_success' => __( 'Connection successful!', 'wp-webdav-media-library' ),
+			'text_error'   => __( 'Connection failed', 'wp-webdav-media-library' ),
+			'text_test_btn'=> __( 'Test Connection', 'wp-webdav-media-library' ),
+		) );
+	}
+
+	/**
+	 * AJAX handler to test WebDAV connection.
+	 *
+	 * @return void
+	 */
+	public function ajax_test_connection(): void {
+		check_ajax_referer( 'wwml_test_conn', 'nonce' );
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( __( 'No permission', 'wp-webdav-media-library' ) );
+		}
+
+		$server   = sanitize_text_field( $_POST['server'] ?? '' );
+		$login    = sanitize_text_field( $_POST['login'] ?? '' );
+		$password = $_POST['password'] ?? '';
+		$path     = sanitize_text_field( $_POST['path'] ?? '' );
+
+		if ( empty( $server ) || empty( $login ) || empty( $password ) ) {
+			wp_send_json_error( __( 'Please fill all fields', 'wp-webdav-media-library' ) );
+		}
+
+		$domain = str_starts_with( $server, 'http' ) ? $server : 'https://' . $server;
+		$settings = array(
+			'baseUri'  => $domain,
+			'userName' => $login,
+			'password' => $password,
+		);
+
+		try {
+			$client = new Client( $settings );
+			$client->propFind( $path, array(), 0 );
+			wp_send_json_success();
+		} catch ( \Exception $e ) {
+			wp_send_json_error( $e->getMessage() );
+		}
 	}
 
 	/**
@@ -177,14 +344,29 @@ class WebDav extends Service_Base implements Service {
 
 		// add setting.
 		if ( defined( 'EFML_ACTIVATION_RUNNING' ) || 'global' === get_option( 'eml_' . $this->get_name() . '_credentials_vault' ) ) {
+			// add provider selector.
+			$setting = $settings_obj->add_setting( 'eml_webdav_provider' );
+			$setting->set_section( $section );
+			$setting->set_type( 'string' );
+			$setting->set_default( 'custom' );
+			$field = new Select();
+			$field->set_title( __( 'Provider Preset', 'wp-webdav-media-library' ) );
+			$field->set_options( array(
+				'custom'    => __( 'Custom', 'wp-webdav-media-library' ),
+				'nextcloud' => 'Nextcloud',
+				'owncloud'  => 'ownCloud',
+				'yandex'    => __( 'Yandex.Disk', 'wp-webdav-media-library' ),
+			) );
+			$setting->set_field( $field );
+
 			// add setting.
 			$setting = $settings_obj->add_setting( 'eml_webdav_server' );
 			$setting->set_section( $section );
 			$setting->set_autoload( false );
 			$setting->set_type( 'string' );
 			$field = new Text();
-			$field->set_title( __( 'WebDAV Server', 'external-files-from-webdav' ) );
-			$field->set_placeholder( __( 'https://nextcloud.local', 'external-files-from-webdav' ) );
+			$field->set_title( __( 'WebDAV Server', 'wp-webdav-media-library' ) );
+			$field->set_placeholder( __( 'https://nextcloud.local', 'wp-webdav-media-library' ) );
 			$setting->set_field( $field );
 
 			// add setting.
@@ -195,8 +377,8 @@ class WebDav extends Service_Base implements Service {
 			$setting->set_read_callback( array( $this, 'decrypt_value' ) );
 			$setting->set_save_callback( array( $this, 'encrypt_value' ) );
 			$field = new Text();
-			$field->set_title( __( 'Login', 'external-files-from-webdav' ) );
-			$field->set_placeholder( __( 'Your login', 'external-files-from-webdav' ) );
+			$field->set_title( __( 'Login', 'wp-webdav-media-library' ) );
+			$field->set_placeholder( __( 'Your login', 'wp-webdav-media-library' ) );
 			$setting->set_field( $field );
 
 			// add setting.
@@ -207,8 +389,8 @@ class WebDav extends Service_Base implements Service {
 			$setting->set_read_callback( array( $this, 'decrypt_value' ) );
 			$setting->set_save_callback( array( $this, 'encrypt_value' ) );
 			$field = new Password();
-			$field->set_title( __( 'Password', 'external-files-from-webdav' ) );
-			$field->set_placeholder( __( 'Your password', 'external-files-from-webdav' ) );
+			$field->set_title( __( 'Password', 'wp-webdav-media-library' ) );
+			$field->set_placeholder( __( 'Your password', 'wp-webdav-media-library' ) );
 			$setting->set_field( $field );
 
 			// add setting.
@@ -217,8 +399,17 @@ class WebDav extends Service_Base implements Service {
 			$setting->set_type( 'string' );
 			$setting->set_default( '/remote.php/dav/files/' );
 			$field = new Text();
-			$field->set_title( __( 'Path', 'external-files-from-webdav' ) );
-			$field->set_description( __( 'Define the path added after the WebDAV-domain to load files. For Nextcloud-based WebDAV this is <code>/remote.php/dav/files/</code>.', 'external-files-from-webdav' ) );
+			$field->set_title( __( 'Path', 'wp-webdav-media-library' ) );
+			$field->set_description( __( 'Define the path added after the WebDAV-domain to load files. For Nextcloud-based WebDAV this is <code>/remote.php/dav/files/</code>.', 'wp-webdav-media-library' ) );
+			$setting->set_field( $field );
+
+			// add test connection button.
+			$setting = $settings_obj->add_setting( 'eml_webdav_test_connection' );
+			$setting->set_section( $section );
+			$field = new Button();
+			$field->set_title( __( 'Test Connection', 'wp-webdav-media-library' ) );
+			$field->set_label( __( 'Test Connection', 'wp-webdav-media-library' ) );
+			$field->set_id( 'wwml-test-connection' );
 			$setting->set_field( $field );
 		}
 
@@ -229,9 +420,9 @@ class WebDav extends Service_Base implements Service {
 			$setting->set_show_in_rest( false );
 			$setting->prevent_export( true );
 			$field = new TextInfo();
-			$field->set_title( __( 'Hint', 'external-files-from-webdav' ) );
+			$field->set_title( __( 'Hint', 'wp-webdav-media-library' ) );
 			/* translators: %1$s will be replaced by a URL. */
-			$field->set_description( sprintf( __( 'Each user will find its settings in his own <a href="%1$s">user profile</a>.', 'external-files-from-webdav' ), $this->get_config_url() ) );
+			$field->set_description( sprintf( __( 'Each user will find its settings in his own <a href="%1$s">user profile</a>.', 'wp-webdav-media-library' ), $this->get_config_url() ) );
 			$setting->set_field( $field );
 		}
 
@@ -241,8 +432,8 @@ class WebDav extends Service_Base implements Service {
 		$setting->set_type( 'integer' );
 		$setting->set_default( 0 );
 		$field = new Checkbox();
-		$field->set_title( __( 'Ignore self-signed SSL-certificates', 'external-files-from-webdav' ) );
-		$field->set_description( __( 'If enabled self-signed certificates will be acknowledged.', 'external-files-from-webdav' ) );
+		$field->set_title( __( 'Ignore self-signed SSL-certificates', 'wp-webdav-media-library' ) );
+		$field->set_description( __( 'If enabled self-signed certificates will be acknowledged.', 'wp-webdav-media-library' ) );
 		$setting->set_field( $field );
 	}
 
@@ -255,7 +446,7 @@ class WebDav extends Service_Base implements Service {
 	 */
 	public function add_protocol( array $protocols ): array {
 		// add the WebDAV protocol before the HTTPS-protocol and return resulting list of protocols.
-		array_unshift( $protocols, 'ExternalFilesFromWebDav\WebDav\Protocol' );
+		array_unshift( $protocols, 'KiSa\WebDavMediaLibrary\WebDav\Protocol' );
 
 		// return the resulting list.
 		return $protocols;
@@ -293,7 +484,7 @@ class WebDav extends Service_Base implements Service {
 		if ( ! $protocol_handler_obj instanceof Protocols\Http ) {
 			// create an error object.
 			$error = new WP_Error();
-			$error->add( 'efml_service_webdav', __( 'Given URL is not an HTTP-URL. The URL:', 'external-files-from-webdav' ) . ' ' . esc_html( $directory ) );
+			$error->add( 'efml_service_webdav', __( 'Given URL is not an HTTP-URL. The URL:', 'wp-webdav-media-library' ) . ' ' . esc_html( $directory ) );
 			$this->add_error( $error );
 
 			// do nothing more.
@@ -307,7 +498,7 @@ class WebDav extends Service_Base implements Service {
 		if ( ! isset( $parse_url['scheme'], $parse_url['host'] ) ) {
 			// create an error object.
 			$error = new WP_Error();
-			$error->add( 'efml_service_webdav', __( 'Given URL could not be analysed.', 'external-files-from-webdav' ) );
+			$error->add( 'efml_service_webdav', __( 'Given URL could not be analysed.', 'wp-webdav-media-library' ) );
 			$this->add_error( $error );
 
 			// do nothing more.
@@ -345,7 +536,7 @@ class WebDav extends Service_Base implements Service {
 		 * @param string $domain The domain to use.
 		 * @param string $directory The requested URL.
 		 */
-		$path = apply_filters( 'efmlwd_service_webdav_path', $path, $fields, $domain, $directory );
+		$path = apply_filters( 'WWML_service_webdav_path', $path, $fields, $domain, $directory );
 
 		/**
 		 * Filter the WebDAV settings.
@@ -356,7 +547,7 @@ class WebDav extends Service_Base implements Service {
 		 * @param string $domain The domain to use.
 		 * @param string $directory The requested URL.
 		 */
-		$settings = apply_filters( 'efmlwd_service_webdav_settings', $settings, $domain, $directory );
+		$settings = apply_filters( 'WWML_service_webdav_settings', $settings, $domain, $directory );
 
 		// get a new client.
 		$client = $this->get_client( $settings, $domain, $directory );
@@ -367,11 +558,11 @@ class WebDav extends Service_Base implements Service {
 		} catch ( \Sabre\HTTP\ClientHttpException | \Sabre\HTTP\ClientException | Error $e ) {
 			// create an error object.
 			$error = new WP_Error();
-			$error->add( 'efml_service_webdav', __( 'The following error occurred:', 'external-files-from-webdav' ) . ' <code>' . $e->getMessage() . '</code>' );
+			$error->add( 'efml_service_webdav', __( 'The following error occurred:', 'wp-webdav-media-library' ) . ' <code>' . $e->getMessage() . '</code>' );
 			$this->add_error( $error );
 
 			// add log entry.
-			Log::get_instance()->create( __( 'The following error occurred:', 'external-files-from-webdav' ) . ' <code>' . $e->getMessage() . '</code><br><br>' . __( 'Domain:', 'external-files-from-webdav' ) . ' <code>' . $domain . '</code><br><br>' . __( 'Path:', 'external-files-from-webdav' ) . ' <code>' . $path . '</code><br><br>' . __( 'Settings:', 'external-files-from-webdav' ) . ' <code>' . wp_json_encode( $settings ) . '</code>', $directory, 'error' );
+			Log::get_instance()->create( __( 'The following error occurred:', 'wp-webdav-media-library' ) . ' <code>' . $e->getMessage() . '</code><br><br>' . __( 'Domain:', 'wp-webdav-media-library' ) . ' <code>' . $domain . '</code><br><br>' . __( 'Path:', 'wp-webdav-media-library' ) . ' <code>' . $path . '</code><br><br>' . __( 'Settings:', 'wp-webdav-media-library' ) . ' <code>' . wp_json_encode( $settings ) . '</code>', $directory, 'error' );
 
 			// do nothing more.
 			return array();
@@ -408,7 +599,7 @@ class WebDav extends Service_Base implements Service {
 				 *
 				 * @noinspection PhpConditionAlreadyCheckedInspection
 				 */
-				if ( apply_filters( 'efmlwd_service_webdav_hide_file', $false, $settings, $file_name ) ) {
+				if ( apply_filters( 'WWML_service_webdav_hide_file', $false, $settings, $file_name ) ) {
 					continue;
 				}
 
@@ -424,9 +615,18 @@ class WebDav extends Service_Base implements Service {
 				$entry['file']          = $domain . '/' . $file_name;
 				$entry['filesize']      = absint( $settings['{DAV:}getcontentlength'] );
 				$entry['mime-type']     = $mime_type['type'];
-				$entry['icon']          = '<span class="dashicons dashicons-media-default" data-type="' . esc_attr( $mime_type['type'] ) . '"></span>';
+
+				$provider = $this->get_provider_type( $domain );
+				$icon_class = 'dashicons-media-default';
+				if ( 'yandex' === $provider ) {
+					$icon_class = 'dashicons-cloud';
+				} elseif ( in_array( $provider, array( 'nextcloud', 'owncloud' ), true ) ) {
+					$icon_class = 'dashicons-cloud-saved';
+				}
+
+				$entry['icon']          = '<span class="dashicons ' . $icon_class . '" data-type="' . esc_attr( $mime_type['type'] ) . '"></span>';
 				$entry['last-modified'] = Helper::get_format_date_time( gmdate( 'Y-m-d H:i:s', absint( strtotime( $settings['{DAV:}getlastmodified'] ) ) ) );
-				$entry['preview']       = '';
+				$entry['preview']       = $this->get_preview_url( $entry['file'] );
 
 				// simply add the entry to the list if no directory data exist.
 				$listing['files'][] = $entry;
@@ -505,9 +705,9 @@ class WebDav extends Service_Base implements Service {
 		return array(
 			array(
 				'action' => 'efml_get_import_dialog( { "service": "' . $this->get_name() . '", "urls": file.file, "fields": config.fields, "term": term } );',
-				'label'  => __( 'Import', 'external-files-from-webdav' ),
+				'label'  => __( 'Import', 'wp-webdav-media-library' ),
 				'show'   => 'let mimetypes = "' . $mimetypes . '";mimetypes.includes( file["mime-type"] )',
-				'hint'   => '<span class="dashicons dashicons-editor-help" title="' . esc_attr__( 'File-type is not supported', 'external-files-from-webdav' ) . '"></span>',
+				'hint'   => '<span class="dashicons dashicons-editor-help" title="' . esc_attr__( 'File-type is not supported', 'wp-webdav-media-library' ) . '"></span>',
 			),
 		);
 	}
@@ -523,7 +723,7 @@ class WebDav extends Service_Base implements Service {
 			array(
 				array(
 					'action' => 'efml_save_as_directory( "' . $this->get_name() . '", actualDirectoryPath, config.fields, config.term );',
-					'label'  => __( 'Save active directory as your external source', 'external-files-from-webdav' ),
+					'label'  => __( 'Save active directory as your external source', 'wp-webdav-media-library' ),
 				),
 			)
 		);
@@ -547,6 +747,25 @@ class WebDav extends Service_Base implements Service {
 	}
 
 	/**
+	 * Return the provider type based on the server URL.
+	 *
+	 * @param string $url The server URL.
+	 * @return string
+	 */
+	public function get_provider_type( string $url ): string {
+		if ( str_contains( $url, 'yandex' ) ) {
+			return 'yandex';
+		}
+		if ( str_contains( $url, 'nextcloud' ) ) {
+			return 'nextcloud';
+		}
+		if ( str_contains( $url, 'owncloud' ) ) {
+			return 'owncloud';
+		}
+		return 'custom';
+	}
+
+	/**
 	 * Set the path, if string for it is empty, with value from settings.
 	 *
 	 * @param string                            $path The path to use.
@@ -563,46 +782,38 @@ class WebDav extends Service_Base implements Service {
 			$path = '';
 		}
 
+		$server_url = $fields['server']['value'] ?? '';
+		$provider = $this->get_provider_type( $server_url );
+
 		// bail if path is not empty.
 		if ( ! empty( $path ) ) {
 			return $path;
 		}
 
+		$base_path = '';
+
 		// get from global setting, if enabled.
 		if ( $this->is_mode( 'global' ) ) {
-			// return path from settings.
-			return get_option( 'eml_webdav_path' ) . $fields['login']['value'] . '/';
-		}
-
-		// get from user setting, if enabled.
-		if ( $this->is_mode( 'user' ) ) {
-			// get current user.
+			$base_path = get_option( 'eml_webdav_path' );
+		} elseif ( $this->is_mode( 'user' ) ) {
 			$user = $this->get_user();
-
-			// bail if user is not available.
-			if ( ! $user instanceof WP_User ) { // @phpstan-ignore instanceof.alwaysTrue
-				return '';
+			if ( $user instanceof WP_User ) {
+				$meta_path = get_user_meta( $user->ID, 'efml_webdav_path', true );
+				if ( is_string( $meta_path ) ) {
+					$base_path = Crypt::get_instance()->decrypt( $meta_path );
+				}
 			}
-
-			// get the setting.
-			$path = get_user_meta( $user->ID, 'efml_webdav_path', true );
-
-			// bail if value is not a string.
-			if ( ! is_string( $path ) ) {
-				return '';
-			}
-
-			// return the region from settings.
-			return Crypt::get_instance()->decrypt( $path ) . $fields['login']['value'] . '/';
+		} else {
+			$base_path = $fields['path']['value'] ?? '';
 		}
 
-		// use the field setting.
-		if ( ! empty( $fields['path']['value'] ) ) {
-			return $fields['path']['value'] . $fields['login']['value'] . '/';
+		// Yandex.Disk doesn't need username in path.
+		if ( 'yandex' === $provider ) {
+			return trailingslashit( $base_path );
 		}
 
-		// return nothing in other cases.
-		return '';
+		// Default behavior: append login to path (for Nextcloud/ownCloud).
+		return trailingslashit( $base_path ) . $fields['login']['value'] . '/';
 	}
 
 	/**
@@ -630,7 +841,7 @@ class WebDav extends Service_Base implements Service {
 		 * @param string $domain    The domain to use.
 		 * @param string $directory The requested URL.
 		 */
-		return apply_filters( 'efmlwd_service_webdav_client', $client, $domain, $directory );
+		return apply_filters( 'WWML_service_webdav_client', $client, $domain, $directory );
 	}
 
 	/**
@@ -674,7 +885,7 @@ class WebDav extends Service_Base implements Service {
 			return;
 		}
 
-		?><h3 id="efml-<?php echo esc_attr( $this->get_name() ); ?>"><?php echo esc_html__( 'WebDav', 'external-files-from-webdav' ); ?></h3>
+		?><h3 id="efml-<?php echo esc_attr( $this->get_name() ); ?>"><?php echo esc_html__( 'WebDav', 'wp-webdav-media-library' ); ?></h3>
 		<div class="efml-user-settings">
 			<?php
 
@@ -694,24 +905,24 @@ class WebDav extends Service_Base implements Service {
 	public function get_user_settings(): array {
 		$list = array(
 			'webdav_server'   => array(
-				'label'       => __( 'WebDAV Server', 'external-files-from-webdav' ),
+				'label'       => __( 'WebDAV Server', 'wp-webdav-media-library' ),
 				'field'       => 'text',
-				'placeholder' => __( 'https://nextcloud.local', 'external-files-from-webdav' ),
+				'placeholder' => __( 'https://nextcloud.local', 'wp-webdav-media-library' ),
 			),
 			'webdav_login'    => array(
-				'label'       => __( 'Login', 'external-files-from-webdav' ),
+				'label'       => __( 'Login', 'wp-webdav-media-library' ),
 				'field'       => 'text',
-				'placeholder' => __( 'Your login', 'external-files-from-webdav' ),
+				'placeholder' => __( 'Your login', 'wp-webdav-media-library' ),
 			),
 			'webdav_password' => array(
-				'label'       => __( 'Password', 'external-files-from-webdav' ),
+				'label'       => __( 'Password', 'wp-webdav-media-library' ),
 				'field'       => 'password',
-				'placeholder' => __( 'Your password', 'external-files-from-webdav' ),
+				'placeholder' => __( 'Your password', 'wp-webdav-media-library' ),
 			),
 			'webdav_path'     => array(
-				'label'       => __( 'Path', 'external-files-from-webdav' ),
+				'label'       => __( 'Path', 'wp-webdav-media-library' ),
 				'field'       => 'text',
-				'description' => __( 'Define the path added after the WebDAV-domain to load files. For Nextcloud-based WebDAV this is <code>/remote.php/dav/files/</code>.', 'external-files-from-webdav' ),
+				'description' => __( 'Define the path added after the WebDAV-domain to load files. For Nextcloud-based WebDAV this is <code>/remote.php/dav/files/</code>.', 'wp-webdav-media-library' ),
 				'default'     => '/remote.php/dav/files/',
 			),
 		);
@@ -722,7 +933,7 @@ class WebDav extends Service_Base implements Service {
 		 * @since 1.0.0 Available since 1.0.0.
 		 * @param array<string,mixed> $list The list of settings.
 		 */
-		return apply_filters( 'efmlwd_service_webdav_user_settings', $list );
+		return apply_filters( 'WWML_service_webdav_user_settings', $list );
 	}
 
 	/**
@@ -741,16 +952,16 @@ class WebDav extends Service_Base implements Service {
 				'server'   => array(
 					'name'        => 'server',
 					'type'        => 'url',
-					'label'       => __( 'Server', 'external-files-from-webdav' ),
-					'placeholder' => __( 'https://example.com', 'external-files-from-webdav' ),
+					'label'       => __( 'Server', 'wp-webdav-media-library' ),
+					'placeholder' => __( 'https://example.com', 'wp-webdav-media-library' ),
 					'value'       => $values['server'],
 					'readonly'    => ! empty( $values['server'] ),
 				),
 				'login'    => array(
 					'name'        => 'login',
 					'type'        => 'text',
-					'label'       => __( 'Login', 'external-files-from-webdav' ),
-					'placeholder' => __( 'Your login', 'external-files-from-webdav' ),
+					'label'       => __( 'Login', 'wp-webdav-media-library' ),
+					'placeholder' => __( 'Your login', 'wp-webdav-media-library' ),
 					'credential'  => true,
 					'value'       => $values['login'],
 					'readonly'    => ! empty( $values['login'] ),
@@ -758,8 +969,8 @@ class WebDav extends Service_Base implements Service {
 				'password' => array(
 					'name'        => 'password',
 					'type'        => 'password',
-					'label'       => __( 'Password', 'external-files-from-webdav' ),
-					'placeholder' => __( 'Your password', 'external-files-from-webdav' ),
+					'label'       => __( 'Password', 'wp-webdav-media-library' ),
+					'placeholder' => __( 'Your password', 'wp-webdav-media-library' ),
 					'credential'  => true,
 					'value'       => $values['password'],
 					'readonly'    => ! empty( $values['password'] ),
@@ -767,8 +978,8 @@ class WebDav extends Service_Base implements Service {
 				'path'     => array(
 					'name'        => 'path',
 					'type'        => 'text',
-					'label'       => __( 'Path', 'external-files-from-webdav' ),
-					'placeholder' => __( '/remote.php/dav/files/', 'external-files-from-webdav' ),
+					'label'       => __( 'Path', 'wp-webdav-media-library' ),
+					'placeholder' => __( '/remote.php/dav/files/', 'wp-webdav-media-library' ),
 					'value'       => ! empty( $values['path'] ) ? $values['path'] : '/remote.php/dav/files/',
 					'readonly'    => ! empty( $values['path'] ),
 				),
@@ -802,11 +1013,11 @@ class WebDav extends Service_Base implements Service {
 	public function get_form_title(): string {
 		// bail if credentials are set.
 		if ( $this->has_credentials_set() ) {
-			return __( 'Connect to your WebDAV', 'external-files-from-webdav' );
+			return __( 'Connect to your WebDAV', 'wp-webdav-media-library' );
 		}
 
 		// return the default title.
-		return __( 'Enter your credentials', 'external-files-from-webdav' );
+		return __( 'Enter your credentials', 'wp-webdav-media-library' );
 	}
 
 	/**
@@ -821,34 +1032,34 @@ class WebDav extends Service_Base implements Service {
 		// if access token is set in plugin settings.
 		if ( $this->is_mode( 'global' ) ) {
 			if ( $has_credentials_set && ! current_user_can( 'manage_options' ) ) {
-				return __( 'The credentials have already been set by an administrator in the plugin settings. Just connect for show the files.', 'external-files-from-webdav' );
+				return __( 'The credentials have already been set by an administrator in the plugin settings. Just connect for show the files.', 'wp-webdav-media-library' );
 			}
 
 			if ( ! $has_credentials_set && ! current_user_can( 'manage_options' ) ) {
-				return __( 'The credentials must be set by an administrator in the plugin settings.', 'external-files-from-webdav' );
+				return __( 'The credentials must be set by an administrator in the plugin settings.', 'wp-webdav-media-library' );
 			}
 
 			if ( ! $has_credentials_set ) {
 				/* translators: %1$s will be replaced by a URL. */
-				return sprintf( __( 'Set your credentials <a href="%1$s">here</a>.', 'external-files-from-webdav' ), $this->get_config_url() );
+				return sprintf( __( 'Set your credentials <a href="%1$s">here</a>.', 'wp-webdav-media-library' ), $this->get_config_url() );
 			}
 
 			/* translators: %1$s will be replaced by a URL. */
-			return sprintf( __( 'Your credentials are already set <a href="%1$s">here</a>. Just connect for show the files.', 'external-files-from-webdav' ), $this->get_config_url() );
+			return sprintf( __( 'Your credentials are already set <a href="%1$s">here</a>. Just connect for show the files.', 'wp-webdav-media-library' ), $this->get_config_url() );
 		}
 
 		// if authentication JSON is set per user.
 		if ( $this->is_mode( 'user' ) ) {
 			if ( ! $has_credentials_set ) {
 				/* translators: %1$s will be replaced by a URL. */
-				return sprintf( __( 'Set your credentials <a href="%1$s">in your profile</a>.', 'external-files-from-webdav' ), $this->get_config_url() );
+				return sprintf( __( 'Set your credentials <a href="%1$s">in your profile</a>.', 'wp-webdav-media-library' ), $this->get_config_url() );
 			}
 
 			/* translators: %1$s will be replaced by a URL. */
-			return sprintf( __( 'Your credentials are already set <a href="%1$s">in your profile</a>. Just connect for show the files.', 'external-files-from-webdav' ), $this->get_config_url() );
+			return sprintf( __( 'Your credentials are already set <a href="%1$s">in your profile</a>. Just connect for show the files.', 'wp-webdav-media-library' ), $this->get_config_url() );
 		}
 
-		return __( 'Enter your WebDAV credentials in this form.', 'external-files-from-webdav' );
+		return __( 'Enter your WebDAV credentials in this form.', 'wp-webdav-media-library' );
 	}
 
 	/**
@@ -979,3 +1190,4 @@ class WebDav extends Service_Base implements Service {
 		return array( 'administrator', 'editor' );
 	}
 }
+

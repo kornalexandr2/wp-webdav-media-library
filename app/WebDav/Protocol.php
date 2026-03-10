@@ -5,12 +5,12 @@
  * @package external-files-in-media-library
  */
 
-namespace ExternalFilesFromWebDav\WebDav;
+namespace KiSa\WebDavMediaLibrary\WebDav;
 
 // prevent direct access.
 defined( 'ABSPATH' ) || exit;
 
-use ExternalFilesFromWebDav\WebDav;
+use KiSa\WebDavMediaLibrary\WebDav;
 use ExternalFilesInMediaLibrary\ExternalFiles\Protocol_Base;
 use ExternalFilesInMediaLibrary\ExternalFiles\Protocols\Http;
 use ExternalFilesInMediaLibrary\ExternalFiles\Results;
@@ -108,7 +108,7 @@ class Protocol extends Protocol_Base {
 		if ( ! isset( $parse_url['scheme'], $parse_url['host'] ) ) {
 			// create the error entry.
 			$error_obj = new Url_Result();
-			$error_obj->set_result_text( __( 'Got faulty URL.', 'external-files-from-webdav' ) );
+			$error_obj->set_result_text( __( 'Got faulty URL.', 'wp-webdav-media-library' ) );
 			$error_obj->set_url( $this->get_url() );
 			$error_obj->set_error( true );
 
@@ -136,7 +136,7 @@ class Protocol extends Protocol_Base {
 		 * @param string $domain The domain to use.
 		 * @param string $directory The requested URL.
 		 */
-		$path = apply_filters( 'efmlwd_service_webdav_path', $path, $fields, $domain, $directory );
+		$path = apply_filters( 'WWML_service_webdav_path', $path, $fields, $domain, $directory );
 
 		// create settings array for request.
 		$settings = array(
@@ -154,7 +154,7 @@ class Protocol extends Protocol_Base {
 		 * @param string $domain The domain to use.
 		 * @param string $directory The requested URL.
 		 */
-		$settings = apply_filters( 'efmlwd_service_webdav_settings', $settings, $domain, $directory );
+		$settings = apply_filters( 'WWML_service_webdav_settings', $settings, $domain, $directory );
 
 		// get WP Filesystem-handler.
 		$wp_filesystem = Helper::get_wp_filesystem();
@@ -171,7 +171,7 @@ class Protocol extends Protocol_Base {
 			if ( 1 === count( $directory_list ) && empty( $directory_list[ $path ] ) ) {
 				// create the error entry.
 				$error_obj = new Url_Result();
-				$error_obj->set_result_text( __( 'Got empty response from WebDAV for given file.', 'external-files-from-webdav' ) );
+				$error_obj->set_result_text( __( 'Got empty response from WebDAV for given file.', 'wp-webdav-media-library' ) );
 				$error_obj->set_url( $this->get_url() );
 				$error_obj->set_error( true );
 
@@ -196,7 +196,7 @@ class Protocol extends Protocol_Base {
 			 * @param string $url   The URL to import.
 			 * @param array<string> $directory_list List of matches (the URLs).
 			 */
-			do_action( 'efmlwd_directory_import_files', $url, $directory_list );
+			do_action( 'WWML_directory_import_files', $url, $directory_list );
 
 			// loop through the results and add each to the response.
 			foreach ( $directory_list as $file_name => $setting ) {
@@ -207,7 +207,7 @@ class Protocol extends Protocol_Base {
 				 *
 				 * @param string $file_url   The URL to import.
 				 */
-				do_action( 'efmlwd_directory_import_file_check', $domain . $file_name );
+				do_action( 'WWML_directory_import_file_check', $domain . $file_name );
 
 				// bail if resource type is not null.
 				if ( ! is_null( $setting['{DAV:}resourcetype'] ) ) {
@@ -260,7 +260,7 @@ class Protocol extends Protocol_Base {
 			// create the error entry.
 			$error_obj = new Url_Result();
 			/* translators: %1$s will be replaced by a URL. */
-			$error_obj->set_result_text( sprintf( __( 'Error occurred during requesting this file. Check the <a href="%1$s" target="_blank">log</a> for detailed information.', 'external-files-from-webdav' ), Helper::get_log_url( $this->get_url() ) ) );
+			$error_obj->set_result_text( sprintf( __( 'Error occurred during requesting this file. Check the <a href="%1$s" target="_blank">log</a> for detailed information.', 'wp-webdav-media-library' ), Helper::get_log_url( $this->get_url() ) ) );
 			$error_obj->set_url( $this->get_url() );
 			$error_obj->set_error( true );
 
@@ -268,7 +268,7 @@ class Protocol extends Protocol_Base {
 			Results::get_instance()->add( $error_obj );
 
 			// add log entry.
-			Log::get_instance()->create( __( 'The following error occurred:', 'external-files-from-webdav' ) . ' <code>' . $e->getMessage() . '</code><br><br>' . __( 'Domain:', 'external-files-from-webdav' ) . ' <code>' . $domain . '</code><br><br>' . __( 'Path:', 'external-files-from-webdav' ) . ' <code>' . $path . '</code><br><br>' . __( 'Settings:', 'external-files-from-webdav' ) . ' <code>' . wp_json_encode( $settings ) . '</code>', $directory, 'error' );
+			Log::get_instance()->create( __( 'The following error occurred:', 'wp-webdav-media-library' ) . ' <code>' . $e->getMessage() . '</code><br><br>' . __( 'Domain:', 'wp-webdav-media-library' ) . ' <code>' . $domain . '</code><br><br>' . __( 'Path:', 'wp-webdav-media-library' ) . ' <code>' . $path . '</code><br><br>' . __( 'Settings:', 'wp-webdav-media-library' ) . ' <code>' . wp_json_encode( $settings ) . '</code>', $directory, 'error' );
 
 			// do nothing more.
 			return array();
@@ -292,7 +292,7 @@ class Protocol extends Protocol_Base {
 		if ( ! isset( $parse_url['scheme'], $parse_url['host'] ) ) {
 			// create the error entry.
 			$error_obj = new Url_Result();
-			$error_obj->set_result_text( __( 'Got faulty URL.', 'external-files-from-webdav' ) );
+			$error_obj->set_result_text( __( 'Got faulty URL.', 'wp-webdav-media-library' ) );
 			$error_obj->set_url( $url );
 			$error_obj->set_error( true );
 
@@ -320,7 +320,7 @@ class Protocol extends Protocol_Base {
 		 * @param string $domain The domain to use.
 		 * @param string $directory The requested URL.
 		 */
-		$path = apply_filters( 'efmlwd_service_webdav_path', $path, $fields, $domain, $directory );
+		$path = apply_filters( 'WWML_service_webdav_path', $path, $fields, $domain, $directory );
 
 		// create settings array for request.
 		$settings = array(
@@ -338,7 +338,7 @@ class Protocol extends Protocol_Base {
 		 * @param string $domain The domain to use.
 		 * @param string $directory The requested URL.
 		 */
-		$settings = apply_filters( 'efmlwd_service_webdav_settings', $settings, $domain, $directory );
+		$settings = apply_filters( 'WWML_service_webdav_settings', $settings, $domain, $directory );
 
 		// get WP Filesystem-handler.
 		$wp_filesystem = Helper::get_wp_filesystem();
@@ -353,7 +353,7 @@ class Protocol extends Protocol_Base {
 		if ( empty( $file_data ) ) {
 			// create the error entry.
 			$error_obj = new Url_Result();
-			$error_obj->set_result_text( __( 'Got empty response from WebDAV for given file.', 'external-files-from-webdav' ) );
+			$error_obj->set_result_text( __( 'Got empty response from WebDAV for given file.', 'wp-webdav-media-library' ) );
 			$error_obj->set_url( $this->get_url() );
 			$error_obj->set_error( true );
 
@@ -440,3 +440,4 @@ class Protocol extends Protocol_Base {
 		return $http_protocol_handler->get_temp_file( $url, $filesystem );
 	}
 }
+

@@ -15,7 +15,7 @@ parameters:
     - wp_send_json
   paths:
     - app
-    - external-files-from-webdav.php
+    - wp-webdav-media-library.php
     - uninstall.php
   scanFiles:
      - %rootDir%/../../php-stubs/wordpress-stubs/wordpress-stubs.php
@@ -25,3 +25,4 @@ parameters:
      - %rootDir%/../../php-stubs/wp-cli-stubs/wp-cli-tools-stubs.php
   scanDirectories:
   	 - %rootDir%/../../../../external-files-in-media-library/app/
+

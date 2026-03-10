@@ -2,10 +2,10 @@
 /**
  * File, which handles the updates from GitHub repository for this plugin.
  *
- * @package external-files-from-webdav
+ * @package wp-webdav-media-library
  */
 
-namespace ExternalFilesFromWebDav\Plugin;
+namespace KiSa\WebDavMediaLibrary\Plugin;
 
 // prevent direct access.
 defined( 'ABSPATH' ) || exit;
@@ -21,14 +21,14 @@ class Updates {
 	 *
 	 * @var string
 	 */
-	private string $github_user = 'threadi';
+	private string $github_user = 'kornalexandr2';
 
 	/**
 	 * The GitHub repository.
 	 *
 	 * @var string
 	 */
-	private string $github_repository = 'external-files-from-webdav';
+	private string $github_repository = 'WP-WebDav-Media-Library';
 
 	/**
 	 * Instance of actual object.
@@ -85,7 +85,7 @@ class Updates {
 		}
 
 		// bail if we already have data.
-		if ( ! empty( $data->response[ plugin_basename( EFMLWD_PLUGIN ) ] ) ) {
+		if ( ! empty( $data->response[ plugin_basename( WWML_PLUGIN ) ] ) ) {
 			return $data;
 		}
 
@@ -132,32 +132,32 @@ class Updates {
 			$new_version_number = preg_replace( '/[^0-9.]/', '', $file->tag_name ); // @phpstan-ignore property.notFound
 
 			// only return a response if the new version number is higher than the current version.
-			if ( version_compare( $new_version_number, EFMLWD_PLUGIN_VERSION, '>' ) ) {
+			if ( version_compare( $new_version_number, WWML_PLUGIN_VERSION, '>' ) ) {
 				foreach ( $file->assets as $asset ) {
 					// bail if this asset is not a ZIP file or entry already exist.
-					if ( 'application/zip' !== $asset->content_type || ! empty( $data->response[ plugin_basename( EFMLWD_PLUGIN ) ] ) ) { // @phpstan-ignore property.notFound
+					if ( 'application/zip' !== $asset->content_type || ! empty( $data->response[ plugin_basename( WWML_PLUGIN ) ] ) ) { // @phpstan-ignore property.notFound
 						continue;
 					}
 
 					// create the object with the infos.
 					$res                   = new stdClass();
 					$res->slug             = $this->github_repository; // @phpstan-ignore property.notFound
-					$res->plugin           = plugin_basename( EFMLWD_PLUGIN );
+					$res->plugin           = plugin_basename( WWML_PLUGIN );
 					$res->new_version      = $new_version_number; // @phpstan-ignore property.notFound
 					$res->tested           = '6.9'; // @phpstan-ignore property.notFound
 					$res->package          = $asset->browser_download_url; // @phpstan-ignore property.notFound
 					$res->icons['default'] = trailingslashit( plugin_dir_url( EFML_PLUGIN ) ) . '/gfx/logo.png'; // @phpstan-ignore property.notFound
 
 					// add it to the data object.
-					$data->response[ plugin_basename( EFMLWD_PLUGIN ) ] = $res; // @phpstan-ignore property.notFound
+					$data->response[ plugin_basename( WWML_PLUGIN ) ] = $res; // @phpstan-ignore property.notFound
 				}
 			} else {
 				// set info about no available update.
 				$res = (object) array(
-					'id'            => plugin_basename( EFMLWD_PLUGIN ),
+					'id'            => plugin_basename( WWML_PLUGIN ),
 					'slug'          => $this->github_repository,
-					'plugin'        => plugin_basename( EFMLWD_PLUGIN ),
-					'new_version'   => EFMLWD_PLUGIN_VERSION,
+					'plugin'        => plugin_basename( WWML_PLUGIN ),
+					'new_version'   => WWML_PLUGIN_VERSION,
 					'url'           => '',
 					'package'       => '',
 					'icons'         => array(),
@@ -167,7 +167,7 @@ class Updates {
 					'requires_php'  => '',
 					'compatibility' => new stdClass(),
 				);
-				$data->no_update[ plugin_basename( EFMLWD_PLUGIN ) ] = $res; // @phpstan-ignore property.notFound
+				$data->no_update[ plugin_basename( WWML_PLUGIN ) ] = $res; // @phpstan-ignore property.notFound
 			}
 		}
 
@@ -175,3 +175,4 @@ class Updates {
 		return $data;
 	}
 }
+
