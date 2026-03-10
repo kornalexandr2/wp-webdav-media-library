@@ -159,6 +159,10 @@ class WebDav extends Service_Base implements Service {
 	 * @return void
 	 */
 	public function ajax_preview(): void {
+		if ( ! current_user_can( 'upload_files' ) ) {
+			wp_die( 'No permission' );
+		}
+
 		$file_url = sanitize_text_field( $_GET['file'] ?? '' );
 		if ( empty( $file_url ) ) {
 			wp_die();
@@ -193,8 +197,7 @@ class WebDav extends Service_Base implements Service {
 
 			if ( 200 === $response['statusCode'] ) {
 				$image_data = $response['body'];
-				$editor     = wp_get_image_editor( 'php://memory' );
-
+				
 				// We need to write to a temp file first because wp_get_image_editor doesn't like memory streams sometimes.
 				$tmp_file = wp_tempnam();
 				file_put_contents( $tmp_file, $image_data );
