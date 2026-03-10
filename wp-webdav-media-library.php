@@ -36,3 +36,10 @@ const WWML_PLUGIN_VERSION = '1.0.0';
 // initialize plugin.
 Init::get_instance()->init();
 
+// Flush rewrite rules on activation.
+register_activation_hook( __FILE__, function() {
+	$proxy = new \KiSa\WebDavMediaLibrary\Media\Proxy();
+	$proxy->add_rewrite_rules();
+	flush_rewrite_rules();
+} );
+
