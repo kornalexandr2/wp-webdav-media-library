@@ -15,6 +15,15 @@ class Proxy {
 		add_action( 'init', array( $this, 'add_rewrite_rules' ) );
 		add_filter( 'query_vars', array( $this, 'add_query_vars' ) );
 		add_action( 'template_redirect', array( $this, 'handle_proxy_request' ) );
+		add_action( 'admin_init', array( $this, 'maybe_flush_rules' ) );
+	}
+
+	public function maybe_flush_rules(): void {
+		if ( get_option( 'wwml_flush_rewrite' ) ) {
+			$this->add_rewrite_rules();
+			flush_rewrite_rules();
+			delete_option( 'wwml_flush_rewrite' );
+		}
 	}
 
 	public function add_rewrite_rules(): void {

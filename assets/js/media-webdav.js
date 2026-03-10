@@ -129,25 +129,23 @@
 				nonce: l10n.nonce,
 				file_url: url
 			}).done(function(attachmentData) {
-				// We received WP Attachment JSON. Add to selection.
+				// We received WP Attachment JSON.
 				var attachment = wp.media.model.Attachment.create(attachmentData);
-				attachment.fetch();
-
-				var frame = self.controller;
 				
-				// Add to library collection so it shows up
-				if (frame.state('insert')) {
-					var selection = frame.state('insert').get('selection');
-					selection.add(attachment);
-					frame.setState('insert');
-				} else if (frame.state('library')) {
-					var selection = frame.state('library').get('selection');
-					selection.add(attachment);
-					frame.setState('library');
-				} else {
-					// Fallback to router 'browse'
-					frame.setState('insert');
+				// Force addition to the global library collection
+				if (wp.media.query()) {
+					wp.media.query().add(attachment);
 				}
+
+				// Switch to Library tab and select the new item
+				var frame = self.controller;
+				frame.setState('library');
+				
+				// Small delay to let the grid render
+				setTimeout(function() {
+					var selection = frame.state().get('selection');
+					selection.reset([attachment]);
+				}, 100);
 
 			}).fail(function(err) {
 				$item.removeClass('is-importing').find('.spinner').remove();

@@ -36,7 +36,9 @@ class Settings {
 		register_setting( 'wwml_settings_group', 'wwml_login' );
 		register_setting( 'wwml_settings_group', 'wwml_password' );
 		register_setting( 'wwml_settings_group', 'wwml_path' );
-		register_setting( 'wwml_settings_group', 'wwml_proxy_slug' );
+		register_setting( 'wwml_settings_group', 'wwml_proxy_slug', array(
+			'sanitize_callback' => array( $this, 'sanitize_proxy_slug' )
+		) );
 
 		add_settings_section(
 			'wwml_main_section',
@@ -51,6 +53,13 @@ class Settings {
 		add_settings_field( 'wwml_password', __( 'Password', 'wp-webdav-media-library' ), array( $this, 'render_password_field' ), 'wwml-settings', 'wwml_main_section' );
 		add_settings_field( 'wwml_path', __( 'Path', 'wp-webdav-media-library' ), array( $this, 'render_path_field' ), 'wwml-settings', 'wwml_main_section' );
 		add_settings_field( 'wwml_proxy_slug', __( 'Proxy URL Slug', 'wp-webdav-media-library' ), array( $this, 'render_proxy_slug_field' ), 'wwml-settings', 'wwml_main_section' );
+	}
+
+	public function sanitize_proxy_slug( $slug ) {
+		$slug = sanitize_title( $slug );
+		// Flush rules on next load
+		update_option( 'wwml_flush_rewrite', 1 );
+		return $slug;
 	}
 
 	public function render_proxy_slug_field(): void {
