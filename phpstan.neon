@@ -4,13 +4,6 @@ parameters:
   ignoreErrors:
     - "#^Unsafe usage of new static#"
     - "#of function absint expects#"
-    - "#ExternalFilesInMediaLibrary#"
-    - "#set_fields#"
-    - "#add_error#"
-    - "#get_name#"
-    - "#get_url#"
-    - "#easyDirectoryListingForWordPress#"
-    - "#EFML_PLUGIN#"
   earlyTerminatingFunctionCalls:
     - wp_send_json
   paths:
@@ -23,6 +16,4 @@ parameters:
      - %rootDir%/../../php-stubs/wp-cli-stubs/wp-cli-commands-stubs.php
      - %rootDir%/../../php-stubs/wp-cli-stubs/wp-cli-i18n-stubs.php
      - %rootDir%/../../php-stubs/wp-cli-stubs/wp-cli-tools-stubs.php
-  scanDirectories:
-  	 - %rootDir%/../../../../external-files-in-media-library/app/
 
