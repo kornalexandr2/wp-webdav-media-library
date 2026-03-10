@@ -1,45 +1,40 @@
-=== External files from WebDav in Media Library ===
-Contributors: threadi
-Tags: external files, media library, Webdav
+=== WP WebDav Media Library ===
+Contributors: kornalexandr2, KiSa
+Tags: media, library, webdav, cloud, external, yandex, nextcloud
 Requires at least: 6.2
-Tested up to: 6.9
+Tested up to: 6.7
 Requires PHP: 8.1
-Requires CP:  2.0
-License: GPL-2.0-or-later
-License URI: https://www.gnu.org/licenses/gpl-2.0.html
-Stable tag: @@VersionNumber@@
+License: GPLv2 or later
+License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
-Add the possibility to import, export and synchronise files from and to WebDav. Your need the plugin "Externale Files in Media Library" to use it.
+Независимый форк для использования WebDav в медиабиблиотеке WordPress.
 
 == Description ==
 
-Add the possibility to import, export and synchronise files from and to WebDav. Your need the plugin "Externale Files in Media Library" to use it.
+Этот плагин является форком "External files from WebDav in Media Library". Он позволяет подключить вашу медиабиблиотеку WordPress к любому серверу WebDAV (Nextcloud, Яндекс.Диск и т. д.), чтобы использовать внешние файлы без их хранения на вашем сервере.
 
-== Repository, documentation and reliability ==
-
-The development repository is on [GitHub](https://github.com/threadi/external-files-from-webdav/).
-
-Each release of this plugin will only be published if it fulfills the following conditions:
-
-* PHPStan check for possible bugs.
-* Compliance with WordPress Coding Standards.
-* No failures during PHP Compatibility check.
-* No exceptions during PHP Unit Tests.
-
----
+Основные возможности:
+* Простой выбор предустановок для популярных облачных сервисов.
+* Проверка соединения в реальном времени.
+* Локальное кэширование миниатюр для быстрой работы.
+* Поддержка пользовательских настроек WebDAV в профиле каждого пользователя.
 
 == Installation ==
 
-1. Upload "external-files-from-webdav" to the "/wp-content/plugins/" directory.
-2. Activate the plugin through the "Plugins" menu in WordPress.
+1. Загрузите файлы плагина в папку `/wp-content/plugins/wp-webdav-media-library`.
+2. Активируйте плагин через экран 'Плагины' в WordPress.
+3. Настройте параметры WebDAV в разделе 'Настройки' -> 'WebDAV'.
 
 == Screenshots ==
 
+1. Страница настроек с выбором провайдера.
 
 == Changelog ==
 
-= @@VersionNumber@@ =
-
-- Initial release
-
-[older changes](https://github.com/threadi/external-files-from-webdav/blob/master/changelog.md)
+= 1.0.0 =
+* Первый релиз форка.
+* Ребрендинг в WP WebDav Media Library.
+* Изменен префикс функций на wwml_.
+* Добавлена поддержка пресетов провайдеров (Nextcloud, Яндекс.Диск).
+* Добавлена кнопка проверки соединения.
+* Реализовано кэширование превью изображений.

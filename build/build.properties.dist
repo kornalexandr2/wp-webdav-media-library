@@ -1,8 +1,9 @@
 # Plugin-Slug
-plugin.slug=external-files-from-webdav
+plugin.slug=wp-webdav-media-library
 
 # version number to use
 plugin.version=
 
 # set path to composer-binary
 composer.path=
+

@@ -2,10 +2,10 @@
 /**
  * This file contains the uninstall-handling for this plugin.
  *
- * @package external-files-from-webdav
+ * @package wp-webdav-media-library
  */
 
-namespace ExternalFilesFromWebDav\Plugin;
+namespace KiSa\WebDavMediaLibrary\Plugin;
 
 // prevent direct access.
 defined( 'ABSPATH' ) || exit;
@@ -60,3 +60,4 @@ class Uninstall {
 		// TODO to add.
 	}
 }
+

@@ -2,15 +2,15 @@
 /**
  * This file contains the main initialization object for this plugin.
  *
- * @package external-files-from-webdav
+ * @package wp-webdav-media-library
  */
 
-namespace ExternalFilesFromWebDav\Plugin;
+namespace KiSa\WebDavMediaLibrary\Plugin;
 
 // prevent direct access.
 defined( 'ABSPATH' ) || exit;
 
-use ExternalFilesFromWebDav\WebDav;
+use KiSa\WebDavMediaLibrary\WebDav;
 use ExternalFilesInMediaLibrary\Plugin\Roles;
 use ExternalFilesInMediaLibrary\Services\Service_Plugin_Base;
 
@@ -61,7 +61,7 @@ class Init {
 		Updates::get_instance()->init();
 
 		// plugin-action.
-		register_activation_hook( EFMLWD_PLUGIN, array( $this, 'activation' ) );
+		register_activation_hook( WWML_PLUGIN, array( $this, 'activation' ) );
 
 		// add the service.
 		add_filter( 'efml_services_support', array( $this, 'add_service' ) );
@@ -79,7 +79,7 @@ class Init {
 	 */
 	public function init_languages(): void {
 		// load language files for pro.
-		load_plugin_textdomain( 'external-files-from-webdav', false, dirname( plugin_basename( EFMLWD_PLUGIN ) ) . '/languages' );
+		load_plugin_textdomain( 'wp-webdav-media-library', false, dirname( plugin_basename( WWML_PLUGIN ) ) . '/languages' );
 	}
 
 	/**
@@ -90,7 +90,7 @@ class Init {
 	 * @return array<int,string>
 	 */
 	public function add_service( array $services ): array {
-		$services[] = 'ExternalFilesFromWebDav\WebDav';
+		$services[] = 'KiSa\WebDavMediaLibrary\WebDav';
 		return $services;
 	}
 
@@ -111,7 +111,7 @@ class Init {
 	 * @return array<string,Service_Plugin_Base>
 	 */
 	public function remove_service_plugin( array $plugins ): array {
-		unset( $plugins['external-files-from-webdav'] );
+		unset( $plugins['wp-webdav-media-library'] );
 		return $plugins;
 	}
 
@@ -160,9 +160,10 @@ class Init {
 	 */
 	public function add_configuration( array $configurations ): array {
 		// add our custom configuration.
-		$configurations[] = '\ExternalFilesFromWebDav\Plugin\Configuration';
+		$configurations[] = '\KiSa\WebDavMediaLibrary\Plugin\Configuration';
 
 		// return the resulting configurations.
 		return $configurations;
 	}
 }
+

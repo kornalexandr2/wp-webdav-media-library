@@ -14,26 +14,26 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "X-Generator: Poedit 3.8\n"
-"X-Domain: external-files-from-webdav\n"
+"X-Domain: wp-webdav-media-library\n"
 
 #. Plugin Name of the plugin
-#: external-files-from-webdav-release.php
+#: wp-webdav-media-library-release.php
 msgid "External files from Google Drive in Media Library"
 msgstr "Externe Dateien aus WebDav in der Mediathek"
 
 #. Description of the plugin
-#: external-files-from-webdav-release.php
+#: wp-webdav-media-library-release.php
 msgid "Extends External files in Media Library for usage of Google Drive."
 msgstr ""
 "Erweitert externe Dateien in der Mediathek für die Verwendung von WebDav."
 
 #. Author of the plugin
-#: external-files-from-webdav-release.php
+#: wp-webdav-media-library-release.php
 msgid "Thomas Zwirner"
 msgstr "Thomas Zwirner"
 
 #. Author URI of the plugin
-#: external-files-from-webdav-release.php
+#: wp-webdav-media-library-release.php
 msgid "https://www.thomaszwirner.de"
 msgstr "https://www.thomaszwirner.de"
 
@@ -252,3 +252,4 @@ msgid ""
 msgstr ""
 "Fehler bei Anfrage einer Datei. Prüfe das <a href=\"%1$s\" "
 "target=\"_blank\">Protokoll</a> für mehr Details."
+

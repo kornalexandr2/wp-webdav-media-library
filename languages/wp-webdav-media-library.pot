@@ -3,7 +3,7 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: External files from Google Drive in Media Library 1.0.0\n"
-"Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/external-files-from-webdav\n"
+"Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/wp-webdav-media-library\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
@@ -12,25 +12,25 @@ msgstr ""
 "POT-Creation-Date: 2026-01-23T23:01:56+01:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
-"X-Domain: external-files-from-webdav\n"
+"X-Domain: wp-webdav-media-library\n"
 
 #. Plugin Name of the plugin
-#: external-files-from-webdav-release.php
+#: wp-webdav-media-library-release.php
 msgid "External files from Google Drive in Media Library"
 msgstr ""
 
 #. Description of the plugin
-#: external-files-from-webdav-release.php
+#: wp-webdav-media-library-release.php
 msgid "Extends External files in Media Library for usage of Google Drive."
 msgstr ""
 
 #. Author of the plugin
-#: external-files-from-webdav-release.php
+#: wp-webdav-media-library-release.php
 msgid "Thomas Zwirner"
 msgstr ""
 
 #. Author URI of the plugin
-#: external-files-from-webdav-release.php
+#: wp-webdav-media-library-release.php
 msgid "https://www.thomaszwirner.de"
 msgstr ""
 
@@ -235,3 +235,4 @@ msgstr ""
 #, php-format
 msgid "Error occurred during requesting this file. Check the <a href=\"%1$s\" target=\"_blank\">log</a> for detailed information."
 msgstr ""
+
