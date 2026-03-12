@@ -24,18 +24,40 @@ if ( PHP_VERSION_ID < 80100 ) {
 
 use KiSa\WebDavMediaLibrary\Core\Init;
 
-// Custom robust autoloader for the standalone version.
-if ( file_exists( __DIR__ . '/vendor/autoload.php' ) ) {
-	require_once __DIR__ . '/vendor/autoload.php';
-}
+/**
+ * Custom PSR-4 Autoloader for Standalone Version.
+ */
+spl_autoload_register( function ( $class ) {
+	$prefixes = array(
+		'KiSa\\WebDavMediaLibrary\\' => __DIR__ . '/app/',
+		'Sabre\\'                    => __DIR__ . '/vendor/sabre/dav/lib/',
+		'Sabre\\HTTP\\'              => __DIR__ . '/vendor/sabre/http/lib/',
+		'Sabre\\Uri\\'               => __DIR__ . '/vendor/sabre/uri/lib/',
+		'Sabre\\Xml\\'               => __DIR__ . '/vendor/sabre/xml/lib/',
+		'Sabre\\Event\\'             => __DIR__ . '/vendor/sabre/event/lib/',
+		'Sabre\\VObject\\'           => __DIR__ . '/vendor/sabre/vobject/lib/',
+	);
 
-// Fallback: If Composer's autoloader fails, try to manually load the essential class.
+	foreach ( $prefixes as $prefix => $base_dir ) {
+		$len = strlen( $prefix );
+		if ( 0 !== strncmp( $prefix, $class, $len ) ) {
+			continue;
+		}
+
+		$relative_class = substr( $class, $len );
+		$file = $base_dir . str_replace( '\\', '/', $relative_class ) . '.php';
+
+		if ( file_exists( $file ) ) {
+			require_once $file;
+			return;
+		}
+	}
+} );
+
+// Check if the library is working.
 if ( ! class_exists( 'Sabre\DAV\Client' ) ) {
 	add_action( 'admin_notices', function() {
-		echo '<div class="error"><p>' . sprintf(
-			esc_html__( 'WP WebDav Media Library error: The SabreDAV library is not loaded. Path checked: %s', 'wp-webdav-media-library' ),
-			'<code>' . esc_html( __DIR__ . '/vendor/autoload.php' ) . '</code>'
-		) . '</p></div>';
+		echo '<div class="error"><p>' . esc_html__( 'WP WebDav Media Library error: Failed to load SabreDAV classes via custom loader.', 'wp-webdav-media-library' ) . '</p></div>';
 	} );
 	return;
 }
