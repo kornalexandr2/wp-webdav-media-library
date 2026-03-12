@@ -103,16 +103,14 @@ class WebDavClient {
 				continue; // Skip the directory itself.
 			}
 
+			// Robust directory detection: check SabreDAV object OR trailing slash in URL
 			$is_dir = false;
-			if ( isset( $props['{DAV:}resourcetype'] ) ) {
-				$rt = $props['{DAV:}resourcetype'];
-				if ( $rt instanceof \Sabre\DAV\Xml\Property\ResourceType ) {
-					$is_dir = $rt->is( '{DAV:}collection' );
-				} elseif ( is_string( $rt ) ) {
-					$is_dir = str_contains( $rt, 'collection' );
-				}
+			if ( isset( $props['{DAV:}resourcetype'] ) && $props['{DAV:}resourcetype']->is( '{DAV:}collection' ) ) {
+				$is_dir = true;
+			} elseif ( str_ends_with( $decoded_url, '/' ) ) {
+				$is_dir = true;
 			}
-			
+
 			$basename = basename( rtrim( $decoded_url, '/' ) );
 
 			if ( $is_dir ) {
@@ -125,7 +123,7 @@ class WebDavClient {
 				$listing['files'][] = array(
 					'name'      => $basename,
 					'path'      => $relative_path,
-					'url'       => $this->domain . '/' . ltrim( $normalized_path, '/' ),
+					'url'       => rtrim( $this->domain, '/' ) . '/' . ltrim( $normalized_path, '/' ),
 					'size'      => absint( $props['{DAV:}getcontentlength'] ?? 0 ),
 					'mime_type' => $mime_type['type'] ?? 'application/octet-stream',
 					'modified'  => gmdate( 'Y-m-d H:i:s', strtotime( $props['{DAV:}getlastmodified'] ?? 'now' ) ),
