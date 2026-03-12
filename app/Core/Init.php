@@ -8,6 +8,7 @@
 namespace KiSa\WebDavMediaLibrary\Core;
 
 use KiSa\WebDavMediaLibrary\Admin\Settings;
+use KiSa\WebDavMediaLibrary\Admin\Browser;
 use KiSa\WebDavMediaLibrary\Media\Ajax;
 use KiSa\WebDavMediaLibrary\Media\MediaTab;
 use KiSa\WebDavMediaLibrary\Media\Hooks;
@@ -54,6 +55,10 @@ class Init {
 		// Initialize Settings.
 		$settings = new Settings();
 		$settings->init();
+
+		// Initialize Browser.
+		$browser = new Browser();
+		$browser->init();
 
 		// Initialize Media Tab Integration.
 		$media_tab = new MediaTab();

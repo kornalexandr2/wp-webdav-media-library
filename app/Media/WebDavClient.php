@@ -89,28 +89,34 @@ class WebDavClient {
 		);
 
 		foreach ( $directory_list as $file_url => $props ) {
-			// Normalize path for comparison
-			$decoded_url = rawurldecode($file_url);
-			$relative_path = str_replace( rtrim($this->base_path, '/'), '', rtrim($decoded_url, '/') );
+			// Normalize path for comparison. WebDAV might return full URL or absolute path.
+			$decoded_url = rawurldecode( $file_url );
 			
-			if ( empty( $relative_path ) || $relative_path === rtrim($sub_path, '/') ) {
-				continue; // Skip the directory itself
+			// If it's a full URL, strip the domain.
+			$normalized_path = str_replace( $this->domain, '', $decoded_url );
+			
+			// Calculate relative path by removing the base WebDAV path.
+			$relative_path = str_replace( rtrim( $this->base_path, '/' ), '', rtrim( $normalized_path, '/' ) );
+			$relative_path = '/' . ltrim( $relative_path, '/' );
+			
+			if ( empty( $relative_path ) || '/' === $relative_path || $relative_path === rtrim( $sub_path, '/' ) ) {
+				continue; // Skip the directory itself.
 			}
 
-			$is_dir = isset( $props['{DAV:}resourcetype'] ) && strpos( $props['{DAV:}resourcetype']->getValue(), 'collection' ) !== false;
-			$basename = basename( $decoded_url );
+			$is_dir = isset( $props['{DAV:}resourcetype'] ) && $props['{DAV:}resourcetype']->is( '{DAV:}collection' );
+			$basename = basename( rtrim( $decoded_url, '/' ) );
 
 			if ( $is_dir ) {
 				$listing['dirs'][] = array(
 					'name' => $basename,
-					'path' => $relative_path,
+					'path' => trailingslashit( $relative_path ),
 				);
 			} else {
 				$mime_type = wp_check_filetype( $basename );
 				$listing['files'][] = array(
 					'name'      => $basename,
 					'path'      => $relative_path,
-					'url'       => $this->domain . '/' . ltrim( $file_name, '/' ),
+					'url'       => $this->domain . '/' . ltrim( $normalized_path, '/' ),
 					'size'      => absint( $props['{DAV:}getcontentlength'] ?? 0 ),
 					'mime_type' => $mime_type['type'] ?? 'application/octet-stream',
 					'modified'  => gmdate( 'Y-m-d H:i:s', strtotime( $props['{DAV:}getlastmodified'] ?? 'now' ) ),
