@@ -26,10 +26,19 @@
 			'click .wwml-breadcrumb': 'navigateBreadcrumb'
 		},
 
-		initialize: function() {
+		initialize: function(options) {
+			this.options = options || {};
 			this.currentPath = '/';
+			this.log("View initialized. Path: " + this.currentPath);
 			this.render();
 			this.loadDirectory(this.currentPath);
+		},
+
+		log: function(msg) {
+			if (this.options.debug_log) {
+				this.options.debug_log(msg);
+			}
+			console.log("[WWML] " + msg);
 		},
 
 		render: function() {
@@ -39,21 +48,25 @@
 
 		loadDirectory: function(path) {
 			var self = this;
+			this.log("Loading directory: " + path);
 			this.$el.html('<div class="wwml-loading">' + l10n.loading + '</div>');
 
 			wp.ajax.post('wwml_get_files', {
 				nonce: l10n.nonce,
 				path: path
 			}).done(function(response) {
+				self.log("AJAX Success. Found " + (response.dirs ? response.dirs.length : 0) + " dirs and " + (response.files ? response.files.length : 0) + " files.");
 				self.currentPath = path;
 				self.renderDirectory(response);
 			}).fail(function(err) {
 				var msg = (typeof err === 'object') ? (err.message || l10n.error) : (err || l10n.error);
+				self.log("AJAX FAILED: " + msg);
 				self.$el.html('<div class="error" style="padding:20px; color:#d63638;"><p><strong>Error:</strong> ' + msg + '</p></div>');
 			});
 		},
 
 		renderDirectory: function(data) {
+			this.log("Rendering directory HTML...");
 			var html = '';
 			
 			// Breadcrumbs
@@ -115,17 +128,20 @@
 
 			html += '</div>';
 			this.$el.html(html);
+			this.log("Render complete.");
 		},
 
 		openFolder: function(e) {
 			e.preventDefault();
 			var path = $(e.currentTarget).data('path');
+			this.log("User clicked folder: " + path);
 			this.loadDirectory(path);
 		},
 
 		navigateBreadcrumb: function(e) {
 			e.preventDefault();
 			var path = $(e.currentTarget).data('path');
+			this.log("User clicked breadcrumb: " + path);
 			this.loadDirectory(path);
 		},
 
@@ -135,6 +151,8 @@
 			var url = $item.data('url');
 			var self = this;
 
+			this.log("Starting import for file: " + url);
+
 			if ($item.hasClass('is-importing')) return;
 			$item.addClass('is-importing').append('<span class="spinner is-active" style="position:absolute;top:5px;right:5px;visibility:visible;"></span>');
 
@@ -142,6 +160,7 @@
 				nonce: l10n.nonce,
 				file_url: url
 			}).done(function(attachmentData) {
+				self.log("Import success. Attachment ID: " + attachmentData.id);
 				// We received WP Attachment JSON.
 				var attachment = wp.media.model.Attachment.create(attachmentData);
 				
@@ -169,6 +188,7 @@
 			}).fail(function(err) {
 				$item.removeClass('is-importing').find('.spinner').remove();
 				var msg = (typeof err === 'object') ? (err.message || l10n.error) : (err || l10n.error);
+				self.log("IMPORT FAILED: " + msg);
 				alert(msg);
 			});
 		}
