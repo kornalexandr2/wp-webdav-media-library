@@ -55,6 +55,17 @@ spl_autoload_register( function ( $class ) {
 	}
 } );
 
+// Manually load function files that PSR-4 doesn't handle.
+if ( file_exists( __DIR__ . '/vendor/sabre/uri/lib/functions.php' ) ) {
+	require_once __DIR__ . '/vendor/sabre/uri/lib/functions.php';
+}
+if ( file_exists( __DIR__ . '/vendor/sabre/xml/lib/Deserializer/functions.php' ) ) {
+	require_once __DIR__ . '/vendor/sabre/xml/lib/Deserializer/functions.php';
+}
+if ( file_exists( __DIR__ . '/vendor/sabre/xml/lib/Serializer/functions.php' ) ) {
+	require_once __DIR__ . '/vendor/sabre/xml/lib/Serializer/functions.php';
+}
+
 // Check if the library is working.
 if ( ! class_exists( 'Sabre\DAV\Client' ) ) {
 	add_action( 'admin_notices', function() {
