@@ -15,6 +15,69 @@ class Ajax {
 		add_action( 'wp_ajax_wwml_get_files', array( $this, 'ajax_get_files' ) );
 		add_action( 'wp_ajax_wwml_import_file', array( $this, 'ajax_import_file' ) );
 		add_action( 'wp_ajax_wwml_preview', array( $this, 'ajax_preview' ) );
+		add_action( 'wp_ajax_wwml_preview_debug', array( $this, 'ajax_preview_debug' ) );
+	}
+
+	public function ajax_preview_debug(): void {
+		check_ajax_referer( 'wwml_media_nonce', 'nonce' );
+		$file_url = esc_url_raw( $_POST['file_url'] ?? '' );
+		
+		$log = "--- PREVIEW DEBUG START ---\n";
+		$log .= "File: $file_url\n";
+
+		$upload_dir = wp_upload_dir();
+		$cache_dir  = $upload_dir['basedir'] . '/wwml-cache';
+		$cache_key  = md5( $file_url ) . '.jpg';
+		$cache_path = $cache_dir . '/' . $cache_key;
+
+		$log .= "Cache Path: $cache_path\n";
+
+		$client = new WebDavClient();
+		if ( ! $client->is_configured() ) {
+			wp_send_json_error( array( 'message' => 'WebDAV not configured', 'debug' => $log ) );
+		}
+
+		$parse = wp_parse_url( $file_url );
+		$path  = $parse['path'];
+
+		try {
+			$log .= "Attempting download from: $path\n";
+			$response = $client->get_client()->request( 'GET', $path );
+			$log .= "Server Response: " . $response['statusCode'] . "\n";
+
+			if ( 200 === $response['statusCode'] ) {
+				$image_data = $response['body'];
+				$tmp_file = wp_tempnam();
+				file_put_contents( $tmp_file, $image_data );
+				$log .= "Saved to temp file: $tmp_file (" . strlen($image_data) . " bytes)\n";
+				
+				if ( ! function_exists( 'wp_get_image_editor' ) ) {
+					require_once ABSPATH . 'wp-admin/includes/image.php';
+				}
+
+				$editor = wp_get_image_editor( $tmp_file );
+				if ( ! is_wp_error( $editor ) ) {
+					$log .= "Image editor loaded: " . get_class($editor) . "\n";
+					$editor->resize( 250, 250, true );
+					$save_res = $editor->save( $cache_path, 'image/jpeg' );
+					
+					if ( is_wp_error( $save_res ) ) {
+						$log .= "SAVE FAILED: " . $save_res->get_error_message() . "\n";
+					} else {
+						$log .= "SUCCESS: Preview saved to cache.\n";
+					}
+					unlink( $tmp_file );
+				} else {
+					$log .= "EDITOR ERROR: " . $editor->get_error_message() . "\n";
+					unlink( $tmp_file );
+				}
+			}
+		} catch ( \Exception $e ) {
+			$log .= "EXCEPTION: " . $e->getMessage() . "\n";
+		}
+
+		$log .= "--- PREVIEW DEBUG END ---";
+		wp_send_json_success( array( 'debug' => $log ) );
 	}
 
 	public function ajax_get_files(): void {
