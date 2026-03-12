@@ -71,7 +71,7 @@ class Settings {
 	public function render_provider_field(): void {
 		$val = get_option( 'wwml_provider', 'custom' );
 		?>
-		<select name="wwml_provider" id="wwml_provider">
+		<select name="wwml_provider" id="eml_webdav_provider">
 			<option value="custom" <?php selected( $val, 'custom' ); ?>><?php esc_html_e( 'Custom', 'wp-webdav-media-library' ); ?></option>
 			<option value="nextcloud" <?php selected( $val, 'nextcloud' ); ?>>Nextcloud</option>
 			<option value="owncloud" <?php selected( $val, 'owncloud' ); ?>>ownCloud</option>

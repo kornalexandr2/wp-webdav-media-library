@@ -21,9 +21,9 @@
             }
         };
 
-        const $providerSelect = $('#wwml_provider');
-        const $serverInput = $('input[name="wwml_server"]');
-        const $pathInput = $('input[name="wwml_path"]');
+        const $providerSelect = $('#eml_webdav_provider');
+        const $serverInput = $('input[name="eml_webdav_server"]');
+        const $pathInput = $('input[name="eml_webdav_path"]');
 
         if ($providerSelect.length) {
             $providerSelect.on('change', function() {
@@ -39,7 +39,7 @@
             });
         }
 
-        // Кнопка проверки соединения
+        // Кнопка проверки соединения (будет добавлена позже)
         $('#wwml-test-connection').on('click', function(e) {
             e.preventDefault();
             const $btn = $(this);
@@ -47,8 +47,8 @@
                 action: 'wwml_test_webdav_connection',
                 nonce: wwml_admin.nonce,
                 server: $serverInput.val(),
-                login: $('input[name="wwml_login"]').val(),
-                password: $('input[name="wwml_password"]').val(),
+                login: $('input[name="eml_webdav_login"]').val(),
+                password: $('input[name="eml_webdav_password"]').val(),
                 path: $pathInput.val()
             };
 

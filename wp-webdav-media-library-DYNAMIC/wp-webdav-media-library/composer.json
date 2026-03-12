@@ -1,0 +1,21 @@
+{
+    "name": "kisa/wp-webdav-media-library",
+    "description": "Standalone plugin for WebDAV integration in WordPress Media Library",
+    "type": "wordpress-plugin",
+    "license": "GPL-2.0-or-later",
+    "version": "1.0.0",
+    "require": {
+        "php": "^8.1",
+        "sabre/dav": "^4.7"
+    },
+    "autoload": {
+        "psr-4": {
+            "KiSa\\WebDavMediaLibrary\\": "app/"
+        }
+    },
+    "config": {
+        "allow-plugins": {
+            "dealerdirect/phpcodesniffer-composer-installer": true
+        }
+    }
+}
