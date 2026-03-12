@@ -103,7 +103,16 @@ class WebDavClient {
 				continue; // Skip the directory itself.
 			}
 
-			$is_dir = isset( $props['{DAV:}resourcetype'] ) && $props['{DAV:}resourcetype']->is( '{DAV:}collection' );
+			$is_dir = false;
+			if ( isset( $props['{DAV:}resourcetype'] ) ) {
+				$rt = $props['{DAV:}resourcetype'];
+				if ( $rt instanceof \Sabre\DAV\Xml\Property\ResourceType ) {
+					$is_dir = $rt->is( '{DAV:}collection' );
+				} elseif ( is_string( $rt ) ) {
+					$is_dir = str_contains( $rt, 'collection' );
+				}
+			}
+			
 			$basename = basename( rtrim( $decoded_url, '/' ) );
 
 			if ( $is_dir ) {

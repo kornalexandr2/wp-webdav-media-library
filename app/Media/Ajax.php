@@ -21,22 +21,28 @@ class Ajax {
 		check_ajax_referer( 'wwml_media_nonce', 'nonce' );
 
 		if ( ! current_user_can( 'upload_files' ) ) {
-			wp_send_json_error( __( 'No permission', 'wp-webdav-media-library' ) );
+			wp_send_json_error( array( 'message' => __( 'No permission', 'wp-webdav-media-library' ) ) );
 		}
 
 		$path = sanitize_text_field( $_POST['path'] ?? '/' );
 
-		$client = new WebDavClient();
-		if ( ! $client->is_configured() ) {
-			wp_send_json_error( __( 'WebDAV is not configured', 'wp-webdav-media-library' ) );
-		}
+		try {
+			$client = new WebDavClient();
+			if ( ! $client->is_configured() ) {
+				wp_send_json_error( array( 'message' => __( 'WebDAV is not configured', 'wp-webdav-media-library' ) ) );
+			}
 
-		$listing = $client->list_directory( $path );
-		if ( isset( $listing['error'] ) ) {
-			wp_send_json_error( $listing['error'] );
-		}
+			$listing = $client->list_directory( $path );
+			if ( isset( $listing['error'] ) ) {
+				wp_send_json_error( array( 'message' => $listing['error'] ) );
+			}
 
-		wp_send_json_success( $listing );
+			wp_send_json_success( $listing );
+		} catch ( \Exception $e ) {
+			wp_send_json_error( array( 'message' => $e->getMessage() ) );
+		} catch ( \Error $e ) {
+			wp_send_json_error( array( 'message' => 'PHP Error: ' . $e->getMessage() ) );
+		}
 	}
 
 	public function ajax_import_file(): void {
