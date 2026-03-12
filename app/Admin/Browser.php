@@ -16,11 +16,11 @@ class Browser {
 	}
 
 	public function add_browser_page(): void {
-		add_submenu_page(
-			'upload.php',
+		add_media_page(
+			
 			__( 'WebDAV Browser', 'wp-webdav-media-library' ),
 			__( 'WebDAV Browser', 'wp-webdav-media-library' ),
-			'manage_options',
+			'upload_files',
 			'wwml-browser',
 			array( $this, 'render_browser_page' )
 		);
@@ -87,3 +87,4 @@ class Browser {
 		<?php
 	}
 }
+
