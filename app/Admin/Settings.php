@@ -156,16 +156,27 @@ class Settings {
 			wp_send_json_error( __( 'Please fill all fields', 'wp-webdav-media-library' ) );
 		}
 
-		$domain = str_starts_with( $server, 'http' ) ? $server : 'https://' . $server;
+		$domain   = str_starts_with( $server, 'http' ) ? $server : 'https://' . $server;
+		$domain   = rtrim( $domain, '/' );
+		$provider = sanitize_text_field( $_POST['provider'] ?? 'custom' );
+
+		// Adjust path logic to match WebDavClient
+		if ( 'yandex' !== $provider && ! empty( $login ) ) {
+			$path = trailingslashit( $path ) . $login . '/';
+		} else {
+			$path = trailingslashit( $path );
+		}
+
 		$settings = array(
-			'baseUri'  => $domain,
+			'baseUri'  => $domain . '/',
 			'userName' => $login,
 			'password' => $password,
 		);
 
 		try {
 			$client = new Client( $settings );
-			$client->propFind( $path, array(), 0 );
+			// Perform a minimal check on the calculated path
+			$client->propFind( ltrim( $path, '/' ), array( '{DAV:}displayname' ), 0 );
 			wp_send_json_success();
 		} catch ( \Exception $e ) {
 			wp_send_json_error( $e->getMessage() );
