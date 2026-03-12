@@ -159,6 +159,20 @@
 			
 			this.selectedFile = $(e.currentTarget).data('file-json');
 			this.updateSidebar();
+
+			// Add debug info for preview
+			if (this.selectedFile && this.selectedFile.mime_type.indexOf('image/') === 0) {
+				var self = this;
+				this.log("Debugging preview for: " + this.selectedFile.name);
+				wp.ajax.post('wwml_preview_debug', {
+					nonce: l10n.nonce,
+					file_url: this.selectedFile.url
+				}).done(function(res) {
+					if (res.debug) self.log(res.debug);
+				}).fail(function(res) {
+					if (res.debug) self.log(res.debug);
+				});
+			}
 		},
 
 		updateSidebar: function() {
