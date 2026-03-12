@@ -1,6 +1,6 @@
 <?php
 /**
- * Admin settings page.
+ * Admin settings page with detailed debugging.
  *
  * @package wp-webdav-media-library
  */
@@ -57,7 +57,6 @@ class Settings {
 
 	public function sanitize_proxy_slug( $slug ) {
 		$slug = sanitize_title( $slug );
-		// Flush rules on next load
 		update_option( 'wwml_flush_rewrite', 1 );
 		return $slug;
 	}
@@ -87,17 +86,17 @@ class Settings {
 
 	public function render_login_field(): void {
 		$val = get_option( 'wwml_login', '' );
-		echo '<input type="text" id="wwml_login" id="wwml_login" name="wwml_login" value="' . esc_attr( $val ) . '" class="regular-text" />';
+		echo '<input type="text" id="wwml_login" name="wwml_login" value="' . esc_attr( $val ) . '" class="regular-text" />';
 	}
 
 	public function render_password_field(): void {
 		$val = get_option( 'wwml_password', '' );
-		echo '<input type="password" id="wwml_password" id="wwml_password" name="wwml_password" value="' . esc_attr( $val ) . '" class="regular-text" />';
+		echo '<input type="password" id="wwml_password" name="wwml_password" value="' . esc_attr( $val ) . '" class="regular-text" />';
 	}
 
 	public function render_path_field(): void {
-		$val = get_option( 'wwml_path', '/remote.php/dav/files/' );
-		echo '<input type="text" id="wwml_path" id="wwml_path" name="wwml_path" value="' . esc_attr( $val ) . '" class="regular-text" />';
+		$val = get_option( 'wwml_path', '/' );
+		echo '<input type="text" id="wwml_path" name="wwml_path" value="' . esc_attr( $val ) . '" class="regular-text" />';
 	}
 
 	public function render_settings_page(): void {
@@ -113,7 +112,13 @@ class Settings {
 			</form>
 			<hr>
 			<h2><?php esc_html_e( 'Test Connection', 'wp-webdav-media-library' ); ?></h2>
+			<p class="description"><?php esc_html_e( 'Check your settings and see detailed server response below.', 'wp-webdav-media-library' ); ?></p>
 			<button type="button" class="button" id="wwml-test-connection"><?php esc_html_e( 'Test Connection', 'wp-webdav-media-library' ); ?></button>
+			
+			<div id="wwml-debug-log-wrap" style="margin-top: 20px; display: none;">
+				<h3><?php esc_html_e( 'Connection Debug Log:', 'wp-webdav-media-library' ); ?></h3>
+				<pre id="wwml-debug-log" style="background: #f0f0f1; padding: 15px; border: 1px solid #c3c4c7; overflow: auto; max-height: 400px; font-family: monospace; white-space: pre-wrap;"></pre>
+			</div>
 		</div>
 		<?php
 	}
@@ -151,36 +156,74 @@ class Settings {
 		$login    = sanitize_text_field( $_POST['login'] ?? '' );
 		$password = $_POST['password'] ?? '';
 		$path     = sanitize_text_field( $_POST['path'] ?? '' );
+		$provider = sanitize_text_field( $_POST['provider'] ?? 'custom' );
 
 		if ( empty( $server ) || empty( $login ) || empty( $password ) ) {
-			wp_send_json_error( __( 'Please fill all fields', 'wp-webdav-media-library' ) );
+			wp_send_json_error( array( 'message' => __( 'Please fill all fields', 'wp-webdav-media-library' ) ) );
 		}
 
 		$domain   = str_starts_with( $server, 'http' ) ? $server : 'https://' . $server;
 		$domain   = rtrim( $domain, '/' );
-		$provider = sanitize_text_field( $_POST['provider'] ?? 'custom' );
-
-		// Adjust path logic to match WebDavClient
+		
 		if ( in_array( $provider, array( 'nextcloud', 'owncloud' ), true ) && ! empty( $login ) ) {
-			$path = trailingslashit( $path ) . $login . '/';
+			$full_path = trailingslashit( $path ) . $login . '/';
 		} else {
-			$path = trailingslashit( $path );
+			$full_path = trailingslashit( $path );
 		}
 
-		$settings = array(
-			'baseUri'  => $domain . '/',
-			'userName' => $login,
-			'password' => $password,
+		$target_url = $domain . '/' . ltrim( $full_path, '/' );
+		
+		$debug = "--- DEBUG LOG START ---\n";
+		$debug .= "Target URL: " . $target_url . "\n";
+		$debug .= "Provider: " . $provider . "\n";
+		
+		$auth_base64 = base64_encode( "$login:$password" );
+		$headers = array(
+			'Authorization' => 'Basic ' . $auth_base64,
+			'Content-Type'  => 'text/xml; charset=utf-8',
+			'Depth'         => '0',
 		);
 
-		try {
-			$client = new Client( $settings );
-			// Perform a minimal check on the calculated path
-			$client->propFind( ltrim( $path, '/' ), array( '{DAV:}displayname' ), 0 );
-			wp_send_json_success();
-		} catch ( \Exception $e ) {
-			wp_send_json_error( $e->getMessage() );
+		$body = '<?xml version="1.0" encoding="utf-8" ?><D:propfind xmlns:D="DAV:"><D:prop><D:displayname/></D:prop></D:propfind>';
+
+		$debug .= "Request Method: PROPFIND\n";
+		$debug .= "Request Headers:\n" . print_r( $headers, true ) . "\n";
+		$debug .= "Request Body:\n" . $body . "\n\n";
+
+		$response = wp_remote_request( $target_url, array(
+			'method'    => 'PROPFIND',
+			'headers'   => $headers,
+			'body'      => $body,
+			'timeout'   => 20,
+			'sslverify' => false,
+		) );
+
+		if ( is_wp_error( $response ) ) {
+			$debug .= "WP_Error: " . $response->get_error_message() . "\n";
+			wp_send_json_error( array( 'message' => $response->get_error_message(), 'debug' => $debug ) );
+		}
+
+		$code    = wp_remote_retrieve_response_code( $response );
+		$message = wp_remote_retrieve_response_message( $response );
+		$res_headers = wp_remote_retrieve_headers( $response );
+		$res_body    = wp_remote_retrieve_body( $response );
+
+		$debug .= "--- SERVER RESPONSE ---\n";
+		$debug .= "Status: $code $message\n";
+		
+		$debug_headers = "";
+		foreach($res_headers->getAll() as $k => $v) {
+			$debug_headers .= "$k: " . (is_array($v) ? implode(', ', $v) : $v) . "\n";
+		}
+		
+		$debug .= "Response Headers:\n" . $debug_headers . "\n";
+		$debug .= "Response Body:\n" . ( !empty($res_body) ? htmlspecialchars($res_body) : '(empty)' ) . "\n";
+		$debug .= "--- DEBUG LOG END ---";
+
+		if ( $code >= 200 && $code < 300 ) {
+			wp_send_json_success( array( 'debug' => $debug ) );
+		} else {
+			wp_send_json_error( array( 'message' => "Server returned HTTP $code", 'debug' => $debug ) );
 		}
 	}
 }
-

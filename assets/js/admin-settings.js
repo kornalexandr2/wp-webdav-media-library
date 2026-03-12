@@ -16,14 +16,16 @@
                 'placeholder': 'https://webdav.yandex.ru'
             },
             'custom': {
-                'path': '',
+                'path': '/',
                 'placeholder': 'https://example.com'
             }
         };
 
         const $providerSelect = $('#wwml_provider');
-        const $serverInput = $('input[name="wwml_server"]');
-        const $pathInput = $('input[name="wwml_path"]');
+        const $serverInput = $('#wwml_server');
+        const $pathInput = $('#wwml_path');
+        const $debugWrap = $('#wwml-debug-log-wrap');
+        const $debugLog = $('#wwml-debug-log');
 
         if ($providerSelect.length) {
             $providerSelect.on('change', function() {
@@ -46,20 +48,40 @@
             const data = {
                 action: 'wwml_test_webdav_connection',
                 nonce: wwml_admin.nonce,
-                provider: $('#wwml_provider').val(),
-                server: $('#wwml_server').val() || $('input[name="wwml_server"]').val(),
-                login: $('#wwml_login').val() || $('input[name="wwml_login"]').val(),
-                password: $('#wwml_password').val() || $('input[name="wwml_password"]').val(),
-                path: $('#wwml_path').val() || $('input[name="wwml_path"]').val()
+                provider: $providerSelect.val(),
+                server: $serverInput.val(),
+                login: $('#wwml_login').val(),
+                password: $('#wwml_password').val(),
+                path: $pathInput.val()
             };
 
             $btn.prop('disabled', true).text(wwml_admin.text_testing);
+            $debugWrap.hide();
+            $debugLog.text('');
 
             $.post(ajaxurl, data, function(response) {
                 if (response.success) {
                     alert(wwml_admin.text_success);
                 } else {
-                    alert(wwml_admin.text_error + ': ' + response.data);
+                    const msg = (typeof response.data === 'object') ? response.data.message : response.data;
+                    alert(wwml_admin.text_error + ': ' + msg);
+                }
+                
+                if (response.data && response.data.debug) {
+                    $debugLog.text(response.data.debug);
+                    $debugWrap.show();
+                } else if (typeof response === 'string' && response.includes('DEBUG LOG')) {
+                    // Fallback for weird responses
+                    $debugLog.text(response);
+                    $debugWrap.show();
+                }
+
+                $btn.prop('disabled', false).text(wwml_admin.text_test_btn);
+            }).fail(function(xhr) {
+                alert(wwml_admin.text_error + ' (HTTP ' + xhr.status + ')');
+                if (xhr.responseText) {
+                    $debugLog.text(xhr.responseText);
+                    $debugWrap.show();
                 }
                 $btn.prop('disabled', false).text(wwml_admin.text_test_btn);
             });
