@@ -5,7 +5,7 @@
 
 	var l10n = window.wwml_media || {};
 
-	// Controller State for the Media Modal
+	// Controller State
 	wp.media.controller.WebDav = wp.media.controller.State.extend({
 		defaults: {
 			id: 'wwml-webdav',
@@ -16,19 +16,21 @@
 		}
 	});
 
-	// Main Browser View (exported to window for reuse)
+	// Main Browser View
 	window.WWML_Browser_View = wp.media.View.extend({
-		className: 'wwml-browser-wrap',
+		className: 'wwml-browser-container',
 		
 		events: {
 			'click .wwml-folder': 'openFolder',
-			'click .wwml-file': 'importFile',
-			'click .wwml-breadcrumb': 'navigateBreadcrumb'
+			'click .wwml-file': 'selectFile',
+			'click .wwml-breadcrumb': 'navigateBreadcrumb',
+			'click #wwml-import-btn': 'importSelectedFile'
 		},
 
 		initialize: function(options) {
 			this.options = options || {};
 			this.currentPath = '/';
+			this.selectedFile = null;
 			this.log("View initialized. Path: " + this.currentPath);
 			this.render();
 			this.loadDirectory(this.currentPath);
@@ -42,55 +44,64 @@
 		},
 
 		render: function() {
-			this.$el.html('<div class="wwml-loading">' + l10n.loading + '</div>');
+			this.$el.html(
+				'<div class="wwml-browser-main" style="display:flex; height:100%;">' +
+					'<div class="wwml-browser-files" style="flex:1; overflow-y:auto; border-right:1px solid #dcdcde;">' +
+						'<div class="wwml-loading">' + l10n.loading + '</div>' +
+					'</div>' +
+					'<div class="wwml-browser-sidebar" style="width:300px; padding:20px; background:#f6f7f7; overflow-y:auto;">' +
+						'<div class="wwml-sidebar-empty">' + _.escape("Select a file to see details") + '</div>' +
+					'</div>' +
+				'</div>'
+			);
 			return this;
 		},
 
 		loadDirectory: function(path) {
 			var self = this;
 			this.log("Loading directory: " + path);
-			this.$el.html('<div class="wwml-loading">' + l10n.loading + '</div>');
+			this.selectedFile = null;
+			this.updateSidebar();
+			this.$('.wwml-browser-files').html('<div class="wwml-loading">' + l10n.loading + '</div>');
 
 			wp.ajax.post('wwml_get_files', {
 				nonce: l10n.nonce,
 				path: path
 			}).done(function(response) {
-				self.log("AJAX Success. Found " + (response.dirs ? response.dirs.length : 0) + " dirs and " + (response.files ? response.files.length : 0) + " files.");
-				self.currentPath = path;
 				if (response.debug) self.log(response.debug);
+				self.currentPath = path;
 				self.renderDirectory(response);
 			}).fail(function(err) {
 				var msg = (typeof err === 'object') ? (err.message || l10n.error) : (err || l10n.error);
 				self.log("AJAX FAILED: " + msg);
-				self.$el.html('<div class="error" style="padding:20px; color:#d63638;"><p><strong>Error:</strong> ' + msg + '</p></div>');
+				self.$('.wwml-browser-files').html('<div class="error" style="padding:20px; color:#d63638;"><p><strong>Error:</strong> ' + msg + '</p></div>');
 			});
 		},
 
 		renderDirectory: function(data) {
-			this.log("Rendering directory HTML...");
 			var html = '';
 			
 			// Breadcrumbs
 			html += '<div class="wwml-breadcrumbs" style="padding: 10px; background: #f6f7f7; border-bottom: 1px solid #dcdcde; margin-bottom: 15px;">';
 			var parts = this.currentPath.split('/').filter(Boolean);
-			html += '<a class="wwml-breadcrumb" data-path="/" style="text-decoration:none; font-weight:bold;">WebDAV Home</a>';
+			html += '<a class="wwml-breadcrumb" data-path="/" style="text-decoration:none; font-weight:bold; cursor:pointer;">WebDAV Home</a>';
 			var buildPath = '/';
 			for(var i = 0; i < parts.length; i++) {
 				buildPath += parts[i] + '/';
-				html += ' <span style="color:#8c8f94;">&raquo;</span> <a class="wwml-breadcrumb" data-path="' + buildPath + '" style="text-decoration:none;">' + _.escape(parts[i]) + '</a>';
+				html += ' <span style="color:#8c8f94;">&raquo;</span> <a class="wwml-breadcrumb" data-path="' + buildPath + '" style="text-decoration:none; cursor:pointer;">' + _.escape(parts[i]) + '</a>';
 			}
 			html += '</div>';
 
-			html += '<div class="wwml-grid" style="padding: 0 15px 15px 15px;">';
+			html += '<div class="wwml-grid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap:15px; padding: 0 15px 15px 15px;">';
 
 			// Parent dir
 			if (this.currentPath !== '/') {
 				var parentPath = this.currentPath.replace(/([^\/]+)\/$/, '');
 				if (!parentPath.startsWith('/')) parentPath = '/' + parentPath;
 
-				html += '<div class="wwml-item wwml-folder" data-path="' + _.escape(parentPath) + '">';
-				html += '<span class="dashicons dashicons-arrow-left-alt2 wwml-icon folder"></span>';
-				html += '<span class="wwml-filename">..</span>';
+				html += '<div class="wwml-item wwml-folder" data-path="' + _.escape(parentPath) + '" style="border:1px solid #ddd; padding:10px; text-align:center; cursor:pointer;">';
+				html += '<span class="dashicons dashicons-arrow-left-alt2" style="font-size:40px; height:50px; width:100%; color:#007cba;"></span>';
+				html += '<span class="wwml-filename" style="font-size:12px; display:block;">..</span>';
 				html += '</div>';
 			}
 
@@ -100,9 +111,9 @@
 					var targetPath = this.currentPath + dir.name + '/';
 					if (this.currentPath === '/') { targetPath = '/' + dir.name + '/'; }
 
-					html += '<div class="wwml-item wwml-folder" data-path="' + _.escape(targetPath) + '">';
-					html += '<span class="dashicons dashicons-category wwml-icon folder"></span>';
-					html += '<span class="wwml-filename">' + _.escape(dir.name) + '</span>';
+					html += '<div class="wwml-item wwml-folder" data-path="' + _.escape(targetPath) + '" style="border:1px solid #ddd; padding:10px; text-align:center; cursor:pointer;">';
+					html += '<span class="dashicons dashicons-category" style="font-size:40px; height:50px; width:100%; color:#007cba;"></span>';
+					html += '<span class="wwml-filename" style="font-size:12px; display:block;">' + _.escape(dir.name) + '</span>';
 					html += '</div>';
 				}, this);
 			}
@@ -111,15 +122,15 @@
 			if (data.files && data.files.length) {
 				_.each(data.files, function(file) {
 					var mime = (typeof file.mime_type === 'string') ? file.mime_type : '';
-					html += '<div class="wwml-item wwml-file" data-url="' + _.escape(file.url) + '">';
+					html += '<div class="wwml-item wwml-file" data-file-json=\'' + _.escape(JSON.stringify(file)) + '\' style="border:1px solid #ddd; padding:10px; text-align:center; cursor:pointer; position:relative;">';
 					if (mime.indexOf('image/') === 0) {
 						html += '<img src="' + l10n.ajaxurl + '?action=wwml_preview&file=' + encodeURIComponent(file.url) + '" style="height:80px; width:auto; display:block; margin: 0 auto 10px;" />';
 					} else if (mime.indexOf('pdf') !== -1) {
-						html += '<span class="dashicons dashicons-pdf wwml-icon" style="color:#d63638;"></span>';
+						html += '<span class="dashicons dashicons-pdf" style="font-size:40px; height:50px; width:100%; color:#d63638;"></span>';
 					} else {
-						html += '<span class="dashicons dashicons-media-default wwml-icon"></span>';
+						html += '<span class="dashicons dashicons-media-default" style="font-size:40px; height:50px; width:100%; color:#8c8f94;"></span>';
 					}
-					html += '<span class="wwml-filename">' + _.escape(file.name) + '</span>';
+					html += '<span class="wwml-filename" style="font-size:12px; display:block; word-break:break-all;">' + _.escape(file.name) + '</span>';
 					html += '</div>';
 				}, this);
 			}
@@ -129,127 +140,121 @@
 			}
 
 			html += '</div>';
-			this.$el.html(html);
-			this.log("Render complete.");
+			this.$('.wwml-browser-files').html(html);
 		},
 
 		openFolder: function(e) {
-			e.preventDefault();
 			var path = $(e.currentTarget).data('path');
-			this.log("User clicked folder: " + path);
 			this.loadDirectory(path);
 		},
 
 		navigateBreadcrumb: function(e) {
-			e.preventDefault();
 			var path = $(e.currentTarget).data('path');
-			this.log("User clicked breadcrumb: " + path);
 			this.loadDirectory(path);
 		},
 
-		importFile: function(e) {
-			e.preventDefault();
-			var $item = $(e.currentTarget);
-			var url = $item.data('url');
+		selectFile: function(e) {
+			this.$('.wwml-item').css('background', '').css('border-color', '#ddd');
+			$(e.currentTarget).css('background', '#e7f7ff').css('border-color', '#007cba');
+			
+			this.selectedFile = $(e.currentTarget).data('file-json');
+			this.updateSidebar();
+		},
+
+		updateSidebar: function() {
+			var $sidebar = this.$('.wwml-browser-sidebar');
+			if (!this.selectedFile) {
+				$sidebar.html('<div class="wwml-sidebar-empty" style="text-align:center; padding-top:100px; color:#646970;">' + _.escape("Select a file to see details") + '</div>');
+				return;
+			}
+
+			var file = this.selectedFile;
+			var mime = file.mime_type || '';
+			var html = '<h3>' + _.escape("File Details") + '</h3>';
+			
+			if (mime.indexOf('image/') === 0) {
+				html += '<img src="' + l10n.ajaxurl + '?action=wwml_preview&file=' + encodeURIComponent(file.url) + '" style="width:100%; height:auto; margin-bottom:15px; border:1px solid #ddd;" />';
+			} else {
+				html += '<div style="text-align:center; padding:20px; background:#fff; margin-bottom:15px; border:1px solid #ddd;"><span class="dashicons ' + (mime.indexOf('pdf') !== -1 ? 'dashicons-pdf' : 'dashicons-media-default') + '" style="font-size:60px; height:60px; width:60px;"></span></div>';
+			}
+
+			html += '<p><strong>' + _.escape("Name:") + '</strong><br>' + _.escape(file.name) + '</p>';
+			html += '<p><strong>' + _.escape("Type:") + '</strong><br>' + _.escape(mime) + '</p>';
+			html += '<p><strong>' + _.escape("Size:") + '</strong><br>' + this.formatBytes(file.size) + '</p>';
+			html += '<p><strong>' + _.escape("Modified:") + '</strong><br>' + _.escape(file.modified) + '</p>';
+			html += '<hr>';
+			html += '<button id="wwml-import-btn" class="button button-primary button-large" style="width:100%;">' + _.escape("Import to Media Library") + '</button>';
+			
+			$sidebar.html(html);
+		},
+
+		formatBytes: function(bytes, decimals = 2) {
+			if (bytes === 0) return '0 Bytes';
+			const k = 1024;
+			const dm = decimals < 0 ? 0 : decimals;
+			const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+			const i = Math.floor(Math.log(bytes) / Math.log(k));
+			return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+		},
+
+		importSelectedFile: function(e) {
 			var self = this;
+			var $btn = $(e.currentTarget);
+			var file = this.selectedFile;
 
-			this.log("Starting import for file: " + url);
+			if (!file || $btn.prop('disabled')) return;
 
-			if ($item.hasClass('is-importing')) return;
-			$item.addClass('is-importing').append('<span class="spinner is-active" style="position:absolute;top:5px;right:5px;visibility:visible;"></span>');
+			this.log("Starting import for file: " + file.url);
+			$btn.prop('disabled', true).text(l10n.importing);
 
 			wp.ajax.post('wwml_import_file', {
 				nonce: l10n.nonce,
-				file_url: url
+				file_url: file.url
 			}).done(function(attachmentData) {
 				self.log("Import success. Attachment ID: " + attachmentData.id);
-				// We received WP Attachment JSON.
-				var attachment = wp.media.model.Attachment.create(attachmentData);
 				
-				// Add to library collection
 				if (wp.media.query()) {
-					wp.media.query().add(attachment);
+					wp.media.query().add(wp.media.model.Attachment.create(attachmentData));
 				}
 
-				// If we are in a frame (modal), handle selection and switching
 				if (self.options && self.options.controller) {
 					var frame = self.options.controller;
 					frame.setState('library');
-					
 					setTimeout(function() {
 						var selection = frame.state().get('selection');
-						selection.reset([attachment]);
+						selection.reset([wp.media.model.Attachment.create(attachmentData)]);
 					}, 100);
 				} else {
-					// We are on the standalone Browser page
-					$item.removeClass('is-importing').find('.spinner').remove();
-					$item.css('background', '#f0fcf0').css('border-color', '#00a32a');
-					alert("File imported successfully to Media Library!");
+					$btn.text(_.escape("Imported!")).removeClass('button-primary').addClass('button-disabled');
+					alert("File imported successfully!");
 				}
-
 			}).fail(function(err) {
-				$item.removeClass('is-importing').find('.spinner').remove();
+				$btn.prop('disabled', false).text(_.escape("Import to Media Library"));
 				var msg = (typeof err === 'object') ? (err.message || l10n.error) : (err || l10n.error);
-				self.log("IMPORT FAILED: " + msg);
 				alert(msg);
 			});
 		}
 	});
 
-	// Integration with Media Modal
-	var oldMediaFrame = wp.media.view.MediaFrame.Post;
-	if (oldMediaFrame) {
-		wp.media.view.MediaFrame.Post = oldMediaFrame.extend({
-			browseRouter: function(routerView) {
-				oldMediaFrame.prototype.browseRouter.apply(this, arguments);
-				routerView.set({
-					'wwml-webdav': {
-						text: l10n.tab_title,
-						priority: 50
-					}
-				});
-			},
+	// Modal Integration remains same but uses new View
+	var patchFrame = function(FrameClass) {
+		if (!FrameClass) return;
+		var oldBrowseRouter = FrameClass.prototype.browseRouter;
+		FrameClass.prototype.browseRouter = function(routerView) {
+			oldBrowseRouter.apply(this, arguments);
+			routerView.set({ 'wwml-webdav': { text: l10n.tab_title, priority: 50 } });
+		};
 
-			bindHandlers: function() {
-				oldMediaFrame.prototype.bindHandlers.apply(this, arguments);
-				this.on('content:render:wwml-webdav-content', this.wwmlRenderContent, this);
-			},
+		var oldBindHandlers = FrameClass.prototype.bindHandlers;
+		FrameClass.prototype.bindHandlers = function() {
+			oldBindHandlers.apply(this, arguments);
+			this.on('content:render:wwml-webdav-content', function() {
+				this.content.set(new window.WWML_Browser_View({ controller: this }));
+			}, this);
+		};
+	};
 
-			wwmlRenderContent: function() {
-				var view = new window.WWML_Browser_View({
-					controller: this
-				});
-				this.content.set(view);
-			}
-		});
-	}
-
-	var oldSelectFrame = wp.media.view.MediaFrame.Select;
-	if (oldSelectFrame) {
-		wp.media.view.MediaFrame.Select = oldSelectFrame.extend({
-			browseRouter: function(routerView) {
-				oldSelectFrame.prototype.browseRouter.apply(this, arguments);
-				routerView.set({
-					'wwml-webdav': {
-						text: l10n.tab_title,
-						priority: 50
-					}
-				});
-			},
-
-			bindHandlers: function() {
-				oldSelectFrame.prototype.bindHandlers.apply(this, arguments);
-				this.on('content:render:wwml-webdav-content', this.wwmlRenderContent, this);
-			},
-
-			wwmlRenderContent: function() {
-				var view = new window.WWML_Browser_View({
-					controller: this
-				});
-				this.content.set(view);
-			}
-		});
-	}
+	patchFrame(wp.media.view.MediaFrame.Post);
+	patchFrame(wp.media.view.MediaFrame.Select);
 
 })(jQuery, _);
-

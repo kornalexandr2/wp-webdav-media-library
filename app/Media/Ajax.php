@@ -33,23 +33,16 @@ class Ajax {
 			}
 
 			$listing = $client->list_directory( $path );
-			if ( isset( $listing["error"] ) ) {
-				wp_send_json_error( array( "message" => $listing["error"] ) );
-			}
-			$raw_names = array();
-			foreach($listing["dirs"] as $d) $raw_names[] = "[DIR] " . $d["name"];
-			foreach($listing["files"] as $f) $raw_names[] = "[FILE] " . $f["name"];
-			$listing["debug"] = "Server items found: " . implode(", ", $raw_names);
 			if ( isset( $listing['error'] ) ) {
 				wp_send_json_error( array( 'message' => $listing['error'] ) );
 			}
 
 			// Add raw data to debug for visibility
 			$raw_names = array();
-			foreach($listing['dirs'] as $d) $raw_names[] = "[DIR] " . $d['name'];
-			foreach($listing['files'] as $f) $raw_names[] = "[FILE] " . $f['name'];
+			foreach($listing['dirs'] as $d) $raw_names[] = "[DIR] " . $d['name'] . " (" . $d['path'] . ")";
+			foreach($listing['files'] as $f) $raw_names[] = "[FILE] " . $f['name'] . " (URL: " . $f['url'] . ")";
 			
-			$listing['debug'] = "Server items found: " . implode(', ', $raw_names);
+			$listing['debug'] = "Server items found: " . implode(' | ', $raw_names);
 
 			wp_send_json_success( $listing );
 		} catch ( \Exception $e ) {
@@ -164,4 +157,3 @@ class Ajax {
 		wp_die();
 	}
 }
-
