@@ -161,7 +161,7 @@ class Settings {
 		$provider = sanitize_text_field( $_POST['provider'] ?? 'custom' );
 
 		// Adjust path logic to match WebDavClient
-		if ( 'yandex' !== $provider && ! empty( $login ) ) {
+		if ( in_array( $provider, array( 'nextcloud', 'owncloud' ), true ) && ! empty( $login ) ) {
 			$path = trailingslashit( $path ) . $login . '/';
 		} else {
 			$path = trailingslashit( $path );

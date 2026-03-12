@@ -39,7 +39,7 @@ class WebDavClient {
 		);
 
 		// Format path based on provider.
-		if ( 'yandex' !== $provider && ! empty( $login ) ) {
+		if ( in_array( $provider, array( 'nextcloud', 'owncloud' ), true ) && ! empty( $login ) ) {
 			$path = trailingslashit( $path ) . $login . '/';
 		} else {
 			$path = trailingslashit( $path );
