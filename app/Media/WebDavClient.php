@@ -120,10 +120,16 @@ class WebDavClient {
 				);
 			} else {
 				$mime_type = wp_check_filetype( $basename );
+				
+				// Build a properly encoded URL.
+				$path_parts = explode( '/', ltrim( $normalized_path, '/' ) );
+				$encoded_path = implode( '/', array_map( 'rawurlencode', $path_parts ) );
+				$full_encoded_url = rtrim( $this->domain, '/' ) . '/' . $encoded_path;
+
 				$listing['files'][] = array(
 					'name'      => $basename,
 					'path'      => $relative_path,
-					'url'       => rtrim( $this->domain, '/' ) . '/' . ltrim( $normalized_path, '/' ),
+					'url'       => $full_encoded_url,
 					'size'      => absint( $props['{DAV:}getcontentlength'] ?? 0 ),
 					'mime_type' => $mime_type['type'] ?? 'application/octet-stream',
 					'modified'  => gmdate( 'Y-m-d H:i:s', strtotime( $props['{DAV:}getlastmodified'] ?? 'now' ) ),
