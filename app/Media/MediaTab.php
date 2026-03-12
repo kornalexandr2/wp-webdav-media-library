@@ -13,17 +13,16 @@ class MediaTab {
 
 	public function init(): void {
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_media_scripts' ) );
+		add_action( 'wp_enqueue_media', array( $this, 'enqueue_media_scripts' ) );
+		add_action( 'print_media_templates', array( $this, 'print_templates' ) );
 	}
 
 	public function enqueue_media_scripts(): void {
-		if ( ! did_action( 'wp_enqueue_media' ) ) {
-			return;
-		}
-
+		// Enqueue scripts whenever media is needed
 		wp_enqueue_script(
 			'wwml-media-tab',
 			plugin_dir_url( WWML_PLUGIN ) . 'assets/js/media-webdav.js',
-			array( 'jquery', 'media-views', 'media-models' ),
+			array( 'jquery', 'media-views', 'media-models', 'underscore' ),
 			WWML_PLUGIN_VERSION,
 			true
 		);
@@ -43,5 +42,9 @@ class MediaTab {
 			'error'        => __( 'An error occurred.', 'wp-webdav-media-library' ),
 			'ajaxurl'      => admin_url( 'admin-ajax.php' ),
 		) );
+	}
+
+	public function print_templates(): void {
+		// This can be used to inject custom Underscore templates if needed
 	}
 }
