@@ -140,6 +140,10 @@ class Ajax {
 				$tmp_file = wp_tempnam();
 				file_put_contents( $tmp_file, $image_data );
 				
+				if ( ! function_exists( 'wp_get_image_editor' ) ) {
+					require_once ABSPATH . 'wp-admin/includes/image.php';
+				}
+
 				$editor = wp_get_image_editor( $tmp_file );
 				if ( ! is_wp_error( $editor ) ) {
 					$editor->resize( 250, 250, true );
@@ -147,11 +151,15 @@ class Ajax {
 					unlink( $tmp_file );
 					wp_redirect( $cache_url );
 					exit;
+				} else {
+					error_log("WWML Preview Error (Editor): " . $editor->get_error_message());
 				}
 				unlink( $tmp_file );
+			} else {
+				error_log("WWML Preview Error (Download): HTTP " . $response['statusCode'] . " for path " . $path);
 			}
 		} catch ( \Exception $e ) {
-			// Fail silently
+			error_log("WWML Preview Error (Exception): " . $e->getMessage());
 		}
 
 		wp_die();
