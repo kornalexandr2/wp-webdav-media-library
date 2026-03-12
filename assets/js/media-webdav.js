@@ -109,10 +109,11 @@
 			// Files
 			if (data.files && data.files.length) {
 				_.each(data.files, function(file) {
+					var mime = (typeof file.mime_type === 'string') ? file.mime_type : '';
 					html += '<div class="wwml-item wwml-file" data-url="' + _.escape(file.url) + '">';
-					if (file.mime_type.indexOf('image/') === 0) {
+					if (mime.indexOf('image/') === 0) {
 						html += '<img src="' + l10n.ajaxurl + '?action=wwml_preview&file=' + encodeURIComponent(file.url) + '" style="height:80px; width:auto; display:block; margin: 0 auto 10px;" />';
-					} else if (file.mime_type.indexOf('pdf') !== -1) {
+					} else if (mime.indexOf('pdf') !== -1) {
 						html += '<span class="dashicons dashicons-pdf wwml-icon" style="color:#d63638;"></span>';
 					} else {
 						html += '<span class="dashicons dashicons-media-default wwml-icon"></span>';
