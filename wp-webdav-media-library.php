@@ -30,12 +30,13 @@ use KiSa\WebDavMediaLibrary\Core\Init;
 spl_autoload_register( function ( $class ) {
 	$prefixes = array(
 		'KiSa\\WebDavMediaLibrary\\' => __DIR__ . '/app/',
-		'Sabre\\'                    => __DIR__ . '/vendor/sabre/dav/lib/',
+		'Sabre\\DAV\\'               => __DIR__ . '/vendor/sabre/dav/lib/DAV/',
 		'Sabre\\HTTP\\'              => __DIR__ . '/vendor/sabre/http/lib/',
 		'Sabre\\Uri\\'               => __DIR__ . '/vendor/sabre/uri/lib/',
 		'Sabre\\Xml\\'               => __DIR__ . '/vendor/sabre/xml/lib/',
 		'Sabre\\Event\\'             => __DIR__ . '/vendor/sabre/event/lib/',
 		'Sabre\\VObject\\'           => __DIR__ . '/vendor/sabre/vobject/lib/',
+		'Sabre\\'                    => __DIR__ . '/vendor/sabre/dav/lib/', // Fallback for Sabre namespace
 	);
 
 	foreach ( $prefixes as $prefix => $base_dir ) {
