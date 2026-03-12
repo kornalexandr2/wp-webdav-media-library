@@ -57,6 +57,7 @@
 			}).done(function(response) {
 				self.log("AJAX Success. Found " + (response.dirs ? response.dirs.length : 0) + " dirs and " + (response.files ? response.files.length : 0) + " files.");
 				self.currentPath = path;
+				if (response.debug) self.log(response.debug);
 				self.renderDirectory(response);
 			}).fail(function(err) {
 				var msg = (typeof err === 'object') ? (err.message || l10n.error) : (err || l10n.error);
@@ -251,3 +252,4 @@
 	}
 
 })(jQuery, _);
+
