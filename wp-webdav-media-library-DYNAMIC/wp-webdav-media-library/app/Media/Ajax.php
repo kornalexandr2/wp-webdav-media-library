@@ -1,0 +1,146 @@
+<?php
+/**
+ * AJAX Handlers for WebDAV Media Library.
+ *
+ * @package wp-webdav-media-library
+ */
+
+namespace KiSa\WebDavMediaLibrary\Media;
+
+defined( 'ABSPATH' ) || exit;
+
+class Ajax {
+
+	public function init(): void {
+		add_action( 'wp_ajax_wwml_get_files', array( $this, 'ajax_get_files' ) );
+		add_action( 'wp_ajax_wwml_import_file', array( $this, 'ajax_import_file' ) );
+		add_action( 'wp_ajax_wwml_preview', array( $this, 'ajax_preview' ) );
+	}
+
+	public function ajax_get_files(): void {
+		check_ajax_referer( 'wwml_media_nonce', 'nonce' );
+
+		if ( ! current_user_can( 'upload_files' ) ) {
+			wp_send_json_error( __( 'No permission', 'wp-webdav-media-library' ) );
+		}
+
+		$path = sanitize_text_field( $_POST['path'] ?? '/' );
+
+		$client = new WebDavClient();
+		if ( ! $client->is_configured() ) {
+			wp_send_json_error( __( 'WebDAV is not configured', 'wp-webdav-media-library' ) );
+		}
+
+		$listing = $client->list_directory( $path );
+		if ( isset( $listing['error'] ) ) {
+			wp_send_json_error( $listing['error'] );
+		}
+
+		wp_send_json_success( $listing );
+	}
+
+	public function ajax_import_file(): void {
+		check_ajax_referer( 'wwml_media_nonce', 'nonce' );
+
+		if ( ! current_user_can( 'upload_files' ) ) {
+			wp_send_json_error( __( 'No permission', 'wp-webdav-media-library' ) );
+		}
+
+		$file_url = esc_url_raw( $_POST['file_url'] ?? '' );
+		$file_name = sanitize_file_name( basename( parse_url( $file_url, PHP_URL_PATH ) ) );
+
+		if ( empty( $file_url ) || empty( $file_name ) ) {
+			wp_send_json_error( __( 'Invalid file', 'wp-webdav-media-library' ) );
+		}
+
+		$client = new WebDavClient();
+		if ( ! $client->is_configured() ) {
+			wp_send_json_error( __( 'WebDAV is not configured', 'wp-webdav-media-library' ) );
+		}
+
+		// Download file.
+		$parse = wp_parse_url( $file_url );
+		$path  = $parse['path'];
+
+		// We don't download. We just create a DB entry.
+		$attachment = array(
+			'post_mime_type' => wp_check_filetype( $file_name )['type'],
+			'post_title'     => preg_replace( '/\.[^.]+$/', '', $file_name ),
+			'post_content'   => '',
+			'post_status'    => 'inherit',
+			'guid'           => $file_url, // Original WebDAV URL as GUID
+		);
+
+		$id = wp_insert_attachment( $attachment, $file_name );
+		if ( ! is_wp_error( $id ) ) {
+			update_post_meta( $id, '_wwml_remote_url', $file_url );
+			
+			// We can't generate full metadata without the file, 
+			// but we can set basic info.
+			update_post_meta( $id, '_wp_attached_file', 'wwml-remote/' . $file_name );
+
+			$attachment_data = wp_prepare_attachment_for_js( $id );
+			wp_send_json_success( $attachment_data );
+		} else {
+			wp_send_json_error( $id->get_error_message() );
+		}
+	}
+
+	public function ajax_preview(): void {
+		if ( ! current_user_can( 'upload_files' ) ) {
+			wp_die( 'No permission' );
+		}
+
+		$file_url = esc_url_raw( $_GET['file'] ?? '' );
+		if ( empty( $file_url ) ) {
+			wp_die();
+		}
+
+		$upload_dir = wp_upload_dir();
+		$cache_dir  = $upload_dir['basedir'] . '/wwml-cache';
+		if ( ! file_exists( $cache_dir ) ) {
+			wp_mkdir_p( $cache_dir );
+		}
+
+		$cache_key  = md5( $file_url ) . '.jpg';
+		$cache_path = $cache_dir . '/' . $cache_key;
+		$cache_url  = $upload_dir['baseurl'] . '/wwml-cache/' . $cache_key;
+
+		if ( file_exists( $cache_path ) ) {
+			wp_redirect( $cache_url );
+			exit;
+		}
+
+		$client = new WebDavClient();
+		if ( ! $client->is_configured() ) {
+			wp_die();
+		}
+
+		$parse = wp_parse_url( $file_url );
+		$path  = $parse['path'];
+
+		try {
+			$response = $client->get_client()->request( 'GET', $path );
+
+			if ( 200 === $response['statusCode'] ) {
+				$image_data = $response['body'];
+				$tmp_file = wp_tempnam();
+				file_put_contents( $tmp_file, $image_data );
+				
+				$editor = wp_get_image_editor( $tmp_file );
+				if ( ! is_wp_error( $editor ) ) {
+					$editor->resize( 250, 250, true );
+					$editor->save( $cache_path, 'image/jpeg' );
+					unlink( $tmp_file );
+					wp_redirect( $cache_url );
+					exit;
+				}
+				unlink( $tmp_file );
+			}
+		} catch ( \Exception $e ) {
+			// Fail silently
+		}
+
+		wp_die();
+	}
+}
