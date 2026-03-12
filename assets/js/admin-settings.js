@@ -46,10 +46,10 @@
             const data = {
                 action: 'wwml_test_webdav_connection',
                 nonce: wwml_admin.nonce,
-                server: $serverInput.val(),
-                login: $('input[name="wwml_login"]').val(),
-                password: $('input[name="wwml_password"]').val(),
-                path: $pathInput.val()
+                server: $('#wwml_server').val() || $('input[name="wwml_server"]').val(),
+                login: $('#wwml_login').val() || $('input[name="wwml_login"]').val(),
+                password: $('#wwml_password').val() || $('input[name="wwml_password"]').val(),
+                path: $('#wwml_path').val() || $('input[name="wwml_path"]').val()
             };
 
             $btn.prop('disabled', true).text(wwml_admin.text_testing);

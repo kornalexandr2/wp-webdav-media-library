@@ -82,22 +82,22 @@ class Settings {
 
 	public function render_server_field(): void {
 		$val = get_option( 'wwml_server', '' );
-		echo '<input type="url" name="wwml_server" value="' . esc_attr( $val ) . '" class="regular-text" placeholder="https://example.com" />';
+		echo '<input type="url" id="wwml_server" name="wwml_server" value="' . esc_attr( $val ) . '" class="regular-text" placeholder="https://example.com" />';
 	}
 
 	public function render_login_field(): void {
 		$val = get_option( 'wwml_login', '' );
-		echo '<input type="text" name="wwml_login" value="' . esc_attr( $val ) . '" class="regular-text" />';
+		echo '<input type="text" id="wwml_login" id="wwml_login" name="wwml_login" value="' . esc_attr( $val ) . '" class="regular-text" />';
 	}
 
 	public function render_password_field(): void {
 		$val = get_option( 'wwml_password', '' );
-		echo '<input type="password" name="wwml_password" value="' . esc_attr( $val ) . '" class="regular-text" />';
+		echo '<input type="password" id="wwml_password" id="wwml_password" name="wwml_password" value="' . esc_attr( $val ) . '" class="regular-text" />';
 	}
 
 	public function render_path_field(): void {
 		$val = get_option( 'wwml_path', '/remote.php/dav/files/' );
-		echo '<input type="text" name="wwml_path" value="' . esc_attr( $val ) . '" class="regular-text" />';
+		echo '<input type="text" id="wwml_path" id="wwml_path" name="wwml_path" value="' . esc_attr( $val ) . '" class="regular-text" />';
 	}
 
 	public function render_settings_page(): void {
@@ -172,3 +172,4 @@ class Settings {
 		}
 	}
 }
+
