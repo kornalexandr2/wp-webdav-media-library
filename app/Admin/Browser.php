@@ -16,10 +16,11 @@ class Browser {
 	}
 
 	public function add_browser_page(): void {
-		add_media_page(
+		add_submenu_page(
+			'upload.php',
 			__( 'WebDAV Browser', 'wp-webdav-media-library' ),
 			__( 'WebDAV Browser', 'wp-webdav-media-library' ),
-			'upload_files',
+			'manage_options',
 			'wwml-browser',
 			array( $this, 'render_browser_page' )
 		);
