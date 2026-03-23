@@ -112,7 +112,8 @@
             <zipfileset dir="${src.dir}/vendor" includes="autoload.php" fullpath="${plugin.slug}/vendor/autoload.php" />
             <zipfileset dir="${src.dir}/vendor/composer" prefix="${plugin.slug}/vendor/composer" />
             <zipfileset dir="${src.dir}/vendor/sabre" prefix="${plugin.slug}/vendor/sabre" />
-            <zipfileset dir="${src.dir}/vendor/afragen" prefix="${plugin.slug}/vendor/afragen" />
+            <zipfileset dir="${src.dir}/vendor/psr" prefix="${plugin.slug}/vendor/psr" />
+            <zipfileset dir="${src.dir}/vendor/afragen" prefix="${plugin.slug}/vendor/afragen" erroronmissingdir="false" />
             <zipfileset dir="${src.dir}" includes="readme-release.txt" fullpath="${plugin.slug}/readme.txt" />
             <zipfileset dir="${src.dir}" includes="uninstall-release.php" fullpath="${plugin.slug}/uninstall.php" />
             <zipfileset dir="${src.dir}" includes="uninstall.php,composer.json" prefix="${plugin.slug}" />

@@ -25,51 +25,20 @@ if ( PHP_VERSION_ID < 80100 ) {
 use KiSa\WebDavMediaLibrary\Core\Init;
 
 /**
- * Custom PSR-4 Autoloader for Standalone Version.
+ * Autoloader for Standalone Version.
  */
-spl_autoload_register( function ( $class ) {
-	$prefixes = array(
-		'KiSa\\WebDavMediaLibrary\\' => __DIR__ . '/app/',
-		'Sabre\\DAV\\'               => __DIR__ . '/vendor/sabre/dav/lib/DAV/',
-		'Sabre\\HTTP\\'              => __DIR__ . '/vendor/sabre/http/lib/',
-		'Sabre\\Uri\\'               => __DIR__ . '/vendor/sabre/uri/lib/',
-		'Sabre\\Xml\\'               => __DIR__ . '/vendor/sabre/xml/lib/',
-		'Sabre\\Event\\'             => __DIR__ . '/vendor/sabre/event/lib/',
-		'Sabre\\VObject\\'           => __DIR__ . '/vendor/sabre/vobject/lib/',
-		'Sabre\\'                    => __DIR__ . '/vendor/sabre/dav/lib/', // Fallback for Sabre namespace
-	);
-
-	foreach ( $prefixes as $prefix => $base_dir ) {
-		$len = strlen( $prefix );
-		if ( 0 !== strncmp( $prefix, $class, $len ) ) {
-			continue;
-		}
-
-		$relative_class = substr( $class, $len );
-		$file = $base_dir . str_replace( '\\', '/', $relative_class ) . '.php';
-
-		if ( file_exists( $file ) ) {
-			require_once $file;
-			return;
-		}
-	}
-} );
-
-// Manually load function files that PSR-4 doesn't handle.
-if ( file_exists( __DIR__ . '/vendor/sabre/uri/lib/functions.php' ) ) {
-	require_once __DIR__ . '/vendor/sabre/uri/lib/functions.php';
+if ( file_exists( __DIR__ . '/vendor/autoload.php' ) ) {
+	require_once __DIR__ . '/vendor/autoload.php';
 }
-if ( file_exists( __DIR__ . '/vendor/sabre/xml/lib/Deserializer/functions.php' ) ) {
-	require_once __DIR__ . '/vendor/sabre/xml/lib/Deserializer/functions.php';
-}
-if ( file_exists( __DIR__ . '/vendor/sabre/xml/lib/Serializer/functions.php' ) ) {
-	require_once __DIR__ . '/vendor/sabre/xml/lib/Serializer/functions.php';
-}
+
+// Manually load function files that are sometimes missed by simple autoloaders if they are not in vendor/autoload.php (though they should be).
+// For SabreDAV, these are already handled by Composer autoloader, but we keep the check for safety if needed.
+// However, with vendor/autoload.php, they are definitely handled.
 
 // Check if the library is working.
 if ( ! class_exists( 'Sabre\DAV\Client' ) ) {
 	add_action( 'admin_notices', function() {
-		echo '<div class="error"><p>' . esc_html__( 'WP WebDav Media Library error: Failed to load SabreDAV classes via custom loader.', 'wp-webdav-media-library' ) . '</p></div>';
+		echo '<div class="error"><p>' . esc_html__( 'WP WebDav Media Library error: Failed to load SabreDAV classes. Please ensure the "vendor" directory exists and is complete.', 'wp-webdav-media-library' ) . '</p></div>';
 	} );
 	return;
 }
