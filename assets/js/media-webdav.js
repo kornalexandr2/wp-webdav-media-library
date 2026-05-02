@@ -19,7 +19,7 @@
 	// Main Browser View
 	window.WWML_Browser_View = wp.media.View.extend({
 		className: 'wwml-browser-container',
-		
+
 		events: {
 			'click .wwml-folder': 'openFolder',
 			'click .wwml-file': 'selectFile',
@@ -40,7 +40,9 @@
 			if (this.options.debug_log) {
 				this.options.debug_log(msg);
 			}
-			console.log("[WWML] " + msg);
+			if (l10n.debug && window.console) {
+				console.log("[WWML] " + msg);
+			}
 		},
 
 		render: function() {
@@ -80,7 +82,7 @@
 
 		renderDirectory: function(data) {
 			var html = '';
-			
+
 			// Breadcrumbs
 			html += '<div class="wwml-breadcrumbs" style="padding: 10px; background: #f6f7f7; border-bottom: 1px solid #dcdcde; margin-bottom: 15px;">';
 			var parts = this.currentPath.split('/').filter(Boolean);
@@ -124,7 +126,7 @@
 					var mime = (typeof file.mime_type === 'string') ? file.mime_type : '';
 					html += '<div class="wwml-item wwml-file" data-file-json=\'' + _.escape(JSON.stringify(file)) + '\' style="border:1px solid #ddd; padding:10px; text-align:center; cursor:pointer; position:relative;">';
 					if (mime.indexOf('image/') === 0) {
-						html += '<img src="' + l10n.ajaxurl + '?action=wwml_preview&file=' + encodeURIComponent(file.url) + '" style="height:80px; width:auto; display:block; margin: 0 auto 10px;" />';
+						html += '<img src="' + this.getPreviewUrl(file.url) + '" style="height:80px; width:auto; display:block; margin: 0 auto 10px;" />';
 					} else if (mime.indexOf('pdf') !== -1) {
 						html += '<span class="dashicons dashicons-pdf" style="font-size:40px; height:50px; width:100%; color:#d63638;"></span>';
 					} else {
@@ -156,12 +158,12 @@
 		selectFile: function(e) {
 			this.$('.wwml-item').css('background', '').css('border-color', '#ddd');
 			$(e.currentTarget).css('background', '#e7f7ff').css('border-color', '#007cba');
-			
+
 			this.selectedFile = $(e.currentTarget).data('file-json');
 			this.updateSidebar();
 
 			// Add debug info for preview
-			if (this.selectedFile && this.selectedFile.mime_type.indexOf('image/') === 0) {
+			if (l10n.debug && this.selectedFile && this.selectedFile.mime_type.indexOf('image/') === 0) {
 				var self = this;
 				this.log("Debugging preview for: " + this.selectedFile.name);
 				wp.ajax.post('wwml_preview_debug', {
@@ -185,9 +187,9 @@
 			var file = this.selectedFile;
 			var mime = file.mime_type || '';
 			var html = '<h3>' + _.escape("File Details") + '</h3>';
-			
+
 			if (mime.indexOf('image/') === 0) {
-				html += '<img src="' + l10n.ajaxurl + '?action=wwml_preview&file=' + encodeURIComponent(file.url) + '" style="width:100%; height:auto; margin-bottom:15px; border:1px solid #ddd;" />';
+				html += '<img src="' + this.getPreviewUrl(file.url) + '" style="width:100%; height:auto; margin-bottom:15px; border:1px solid #ddd;" />';
 			} else {
 				html += '<div style="text-align:center; padding:20px; background:#fff; margin-bottom:15px; border:1px solid #ddd;"><span class="dashicons ' + (mime.indexOf('pdf') !== -1 ? 'dashicons-pdf' : 'dashicons-media-default') + '" style="font-size:60px; height:60px; width:60px;"></span></div>';
 			}
@@ -198,7 +200,7 @@
 			html += '<p><strong>' + _.escape("Modified:") + '</strong><br>' + _.escape(file.modified) + '</p>';
 			html += '<hr>';
 			html += '<button id="wwml-import-btn" class="button button-primary button-large" style="width:100%;">' + _.escape("Import to Media Library") + '</button>';
-			
+
 			$sidebar.html(html);
 		},
 
@@ -209,6 +211,10 @@
 			const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
 			const i = Math.floor(Math.log(bytes) / Math.log(k));
 			return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+		},
+
+		getPreviewUrl: function(fileUrl) {
+			return l10n.ajaxurl + '?action=wwml_preview&nonce=' + encodeURIComponent(l10n.nonce) + '&file=' + encodeURIComponent(fileUrl);
 		},
 
 		importSelectedFile: function(e) {
@@ -223,10 +229,13 @@
 
 			wp.ajax.post('wwml_import_file', {
 				nonce: l10n.nonce,
-				file_url: file.url
+				file_url: file.url,
+				file_size: file.size || 0,
+				mime_type: file.mime_type || '',
+				modified: file.modified || ''
 			}).done(function(attachmentData) {
 				self.log("Import success. Attachment ID: " + attachmentData.id);
-				
+
 				if (wp.media.query()) {
 					wp.media.query().add(wp.media.model.Attachment.create(attachmentData));
 				}

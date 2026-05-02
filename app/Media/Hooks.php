@@ -14,6 +14,7 @@ class Hooks {
 	public function init(): void {
 		add_filter( 'wp_get_attachment_url', array( $this, 'replace_attachment_url' ), 10, 2 );
 		add_filter( 'image_downsize', array( $this, 'prevent_image_resizing' ), 10, 3 );
+		add_filter( 'wp_prepare_attachment_for_js', array( $this, 'add_remote_attachment_data' ), 10, 3 );
 	}
 
 	/**
@@ -28,7 +29,7 @@ class Hooks {
 		$slug = get_option( 'wwml_proxy_slug', 'remote-media' );
 		$parse = wp_parse_url( $remote_url );
 		$path = $parse['path'] ?? '';
-		
+
 		// We want to serve it via our site URL
 		return home_url( '/' . $slug . $path );
 	}
@@ -49,5 +50,27 @@ class Hooks {
 			0, // height (unknown)
 			false
 		);
+	}
+
+	/**
+	 * Add missing Media Library data for virtual WebDAV attachments.
+	 */
+	public function add_remote_attachment_data( array $response, \WP_Post $attachment, $meta ): array {
+		$remote_url = get_post_meta( $attachment->ID, '_wwml_remote_url', true );
+		if ( empty( $remote_url ) ) {
+			return $response;
+		}
+
+		$remote_size = (int) get_post_meta( $attachment->ID, '_wwml_remote_size', true );
+		if ( $remote_size <= 0 && is_array( $meta ) && isset( $meta['filesize'] ) ) {
+			$remote_size = (int) $meta['filesize'];
+		}
+
+		if ( $remote_size > 0 ) {
+			$response['filesizeInBytes']       = $remote_size;
+			$response['filesizeHumanReadable'] = size_format( $remote_size );
+		}
+
+		return $response;
 	}
 }

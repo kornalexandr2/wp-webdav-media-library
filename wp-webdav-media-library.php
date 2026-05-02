@@ -4,7 +4,7 @@
  * Description:       Independent plugin for using WebDav in WordPress Media Library.
  * Requires at least: 6.2
  * Requires PHP:      8.1
- * Version:           1.0.1
+ * Version:           1.0.2
  * Author:            KiSa
  * Author URI:        https://github.com/kornalexandr2
  * License:           GPL-2.0-or-later
@@ -47,7 +47,7 @@ if ( ! class_exists( 'Sabre\DAV\Client' ) ) {
 const WWML_PLUGIN = __FILE__;
 
 // set the version.
-const WWML_PLUGIN_VERSION = '1.0.1';
+const WWML_PLUGIN_VERSION = '1.0.2';
 
 // initialize plugin.
 Init::get_instance()->init();

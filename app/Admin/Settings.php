@@ -114,7 +114,7 @@ class Settings {
 			<h2><?php esc_html_e( 'Test Connection', 'wp-webdav-media-library' ); ?></h2>
 			<p class="description"><?php esc_html_e( 'Check your settings and see detailed server response below.', 'wp-webdav-media-library' ); ?></p>
 			<button type="button" class="button" id="wwml-test-connection"><?php esc_html_e( 'Test Connection', 'wp-webdav-media-library' ); ?></button>
-			
+
 			<div id="wwml-debug-log-wrap" style="margin-top: 20px; display: none;">
 				<h3><?php esc_html_e( 'Connection Debug Log:', 'wp-webdav-media-library' ); ?></h3>
 				<pre id="wwml-debug-log" style="background: #f0f0f1; padding: 15px; border: 1px solid #c3c4c7; overflow: auto; max-height: 400px; font-family: monospace; white-space: pre-wrap;"></pre>
@@ -164,7 +164,7 @@ class Settings {
 
 		$domain   = str_starts_with( $server, 'http' ) ? $server : 'https://' . $server;
 		$domain   = rtrim( $domain, '/' );
-		
+
 		if ( in_array( $provider, array( 'nextcloud', 'owncloud' ), true ) && ! empty( $login ) ) {
 			$full_path = trailingslashit( $path ) . $login . '/';
 		} else {
@@ -172,11 +172,11 @@ class Settings {
 		}
 
 		$target_url = $domain . '/' . ltrim( $full_path, '/' );
-		
+
 		$debug = "--- DEBUG LOG START ---\n";
 		$debug .= "Target URL: " . $target_url . "\n";
 		$debug .= "Provider: " . $provider . "\n";
-		
+
 		$auth_base64 = base64_encode( "$login:$password" );
 		$headers = array(
 			'Authorization' => 'Basic ' . $auth_base64,
@@ -186,8 +186,11 @@ class Settings {
 
 		$body = '<?xml version="1.0" encoding="utf-8" ?><D:propfind xmlns:D="DAV:"><D:prop><D:displayname/></D:prop></D:propfind>';
 
+		$debug_headers = $headers;
+		$debug_headers['Authorization'] = 'Basic [redacted]';
+
 		$debug .= "Request Method: PROPFIND\n";
-		$debug .= "Request Headers:\n" . print_r( $headers, true ) . "\n";
+		$debug .= "Request Headers:\n" . print_r( $debug_headers, true ) . "\n";
 		$debug .= "Request Body:\n" . $body . "\n\n";
 
 		$response = wp_remote_request( $target_url, array(
@@ -210,13 +213,13 @@ class Settings {
 
 		$debug .= "--- SERVER RESPONSE ---\n";
 		$debug .= "Status: $code $message\n";
-		
-		$debug_headers = "";
+
+		$debug_response_headers = "";
 		foreach($res_headers->getAll() as $k => $v) {
-			$debug_headers .= "$k: " . (is_array($v) ? implode(', ', $v) : $v) . "\n";
+			$debug_response_headers .= "$k: " . (is_array($v) ? implode(', ', $v) : $v) . "\n";
 		}
-		
-		$debug .= "Response Headers:\n" . $debug_headers . "\n";
+
+		$debug .= "Response Headers:\n" . $debug_response_headers . "\n";
 		$debug .= "Response Body:\n" . ( !empty($res_body) ? htmlspecialchars($res_body) : '(empty)' ) . "\n";
 		$debug .= "--- DEBUG LOG END ---";
 

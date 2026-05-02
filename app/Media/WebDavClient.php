@@ -29,7 +29,7 @@ class WebDavClient {
 			return;
 		}
 
-		$this->domain = str_starts_with( $server, 'http' ) ? $server : 'https://' . $server;
+		$this->domain = rtrim( str_starts_with( $server, 'http' ) ? $server : 'https://' . $server, '/' );
 		$this->provider = $provider;
 
 		$settings = array(
@@ -69,15 +69,53 @@ class WebDavClient {
 		return $this->provider;
 	}
 
+	public function get_remote_url( string $remote_path ): string {
+		return rtrim( $this->domain, '/' ) . '/' . $this->encode_path( $remote_path );
+	}
+
+	public function is_path_allowed( string $remote_path ): bool {
+		$base_path   = $this->normalize_path( $this->base_path );
+		$remote_path = $this->normalize_path( rawurldecode( $remote_path ) );
+
+		return str_starts_with( $remote_path, $base_path );
+	}
+
+	public function is_url_allowed( string $url ): bool {
+		$parsed_url    = wp_parse_url( $url );
+		$parsed_domain = wp_parse_url( $this->domain );
+
+		if ( empty( $parsed_url['host'] ) || empty( $parsed_domain['host'] ) ) {
+			return false;
+		}
+
+		if ( strtolower( $parsed_url['host'] ) !== strtolower( $parsed_domain['host'] ) ) {
+			return false;
+		}
+
+		$remote_path = $parsed_url['path'] ?? '/';
+
+		return $this->is_path_allowed( $remote_path );
+	}
+
 	public function list_directory( string $sub_path = '' ): array {
 		if ( ! $this->client ) {
 			return array( 'files' => array(), 'dirs' => array() );
 		}
 
 		$request_path = trailingslashit( $this->base_path ) . ltrim( $sub_path, '/' );
-		
+
 		try {
-			$directory_list = $this->client->propFind( $request_path, array(), 1 );
+			$directory_list = $this->client->propFind(
+				$request_path,
+				array(
+					'{DAV:}resourcetype',
+					'{DAV:}getcontentlength',
+					'{DAV:}getlastmodified',
+					'{DAV:}getcontenttype',
+					'{DAV:}getetag',
+				),
+				1
+			);
 		} catch ( \Exception $e ) {
 			return array( 'error' => $e->getMessage() );
 		}
@@ -91,14 +129,14 @@ class WebDavClient {
 		foreach ( $directory_list as $file_url => $props ) {
 			// Normalize path for comparison. WebDAV might return full URL or absolute path.
 			$decoded_url = rawurldecode( $file_url );
-			
+
 			// If it's a full URL, strip the domain.
 			$normalized_path = str_replace( $this->domain, '', $decoded_url );
-			
-			// Calculate relative path by removing the base WebDAV path.
-			$relative_path = str_replace( rtrim( $this->base_path, '/' ), '', rtrim( $normalized_path, '/' ) );
+
+			// Calculate relative path by removing only the leading base WebDAV path.
+			$relative_path = $this->strip_base_path( rtrim( $normalized_path, '/' ) );
 			$relative_path = '/' . ltrim( $relative_path, '/' );
-			
+
 			if ( empty( $relative_path ) || '/' === $relative_path || $relative_path === rtrim( $sub_path, '/' ) ) {
 				continue; // Skip the directory itself.
 			}
@@ -120,18 +158,14 @@ class WebDavClient {
 				);
 			} else {
 				$mime_type = wp_check_filetype( $basename );
-				
-				// Build a properly encoded URL.
-				$path_parts = explode( '/', ltrim( $normalized_path, '/' ) );
-				$encoded_path = implode( '/', array_map( 'rawurlencode', $path_parts ) );
-				$full_encoded_url = rtrim( $this->domain, '/' ) . '/' . $encoded_path;
+				$remote_mime_type = $props['{DAV:}getcontenttype'] ?? '';
 
 				$listing['files'][] = array(
 					'name'      => $basename,
 					'path'      => $relative_path,
-					'url'       => $full_encoded_url,
-					'size'      => absint( $props['{DAV:}getcontentlength'] ?? 0 ),
-					'mime_type' => $mime_type['type'] ?? 'application/octet-stream',
+					'url'       => $this->get_remote_url( $normalized_path ),
+					'size'      => (int) ( $props['{DAV:}getcontentlength'] ?? 0 ),
+					'mime_type' => $remote_mime_type ?: ( $mime_type['type'] ?? 'application/octet-stream' ),
 					'modified'  => gmdate( 'Y-m-d H:i:s', strtotime( $props['{DAV:}getlastmodified'] ?? 'now' ) ),
 				);
 			}
@@ -139,5 +173,27 @@ class WebDavClient {
 
 		return $listing;
 	}
-}
 
+	private function strip_base_path( string $path ): string {
+		$base_path = rtrim( $this->normalize_path( $this->base_path ), '/' );
+		$path      = $this->normalize_path( $path );
+
+		if ( str_starts_with( $path, $base_path ) ) {
+			return substr( $path, strlen( $base_path ) );
+		}
+
+		return $path;
+	}
+
+	private function normalize_path( string $path ): string {
+		$path = '/' . ltrim( rawurldecode( $path ), '/' );
+
+		return preg_replace( '#/+#', '/', $path ) ?: '/';
+	}
+
+	private function encode_path( string $path ): string {
+		$path_parts = explode( '/', ltrim( $this->normalize_path( $path ), '/' ) );
+
+		return implode( '/', array_map( 'rawurlencode', $path_parts ) );
+	}
+}

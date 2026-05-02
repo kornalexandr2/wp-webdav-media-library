@@ -55,13 +55,25 @@ class Ajax {
 
 		$file_url = esc_url_raw( $_POST['file_url'] ?? '' );
 		$file_name = sanitize_file_name( basename( parse_url( $file_url, PHP_URL_PATH ) ) );
+		$file_size = isset( $_POST['file_size'] ) ? max( 0, (int) $_POST['file_size'] ) : 0;
+		$mime_type = sanitize_mime_type( $_POST['mime_type'] ?? '' );
+		$modified  = sanitize_text_field( $_POST['modified'] ?? '' );
 
 		if ( empty( $file_url ) || empty( $file_name ) ) {
 			wp_send_json_error( __( 'Invalid file', 'wp-webdav-media-library' ) );
 		}
 
+		$client = new WebDavClient();
+		if ( ! $client->is_configured() || ! $client->is_url_allowed( $file_url ) ) {
+			wp_send_json_error( __( 'Invalid WebDAV file URL', 'wp-webdav-media-library' ) );
+		}
+
+		if ( empty( $mime_type ) ) {
+			$mime_type = wp_check_filetype( $file_name )['type'] ?? 'application/octet-stream';
+		}
+
 		$attachment = array(
-			'post_mime_type' => wp_check_filetype( $file_name )['type'],
+			'post_mime_type' => $mime_type,
 			'post_title'     => preg_replace( '/\.[^.]+$/', '', $file_name ),
 			'post_content'   => '',
 			'post_status'    => 'inherit',
@@ -71,7 +83,13 @@ class Ajax {
 		$id = wp_insert_attachment( $attachment, $file_name );
 		if ( ! is_wp_error( $id ) ) {
 			update_post_meta( $id, '_wwml_remote_url', $file_url );
+			update_post_meta( $id, '_wwml_remote_size', $file_size );
+			update_post_meta( $id, '_wwml_remote_modified', $modified );
 			update_post_meta( $id, '_wp_attached_file', 'wwml-remote/' . $file_name );
+
+			if ( $file_size > 0 ) {
+				wp_update_attachment_metadata( $id, array( 'filesize' => $file_size ) );
+			}
 
 			$attachment_data = wp_prepare_attachment_for_js( $id );
 			wp_send_json_success( $attachment_data );
@@ -82,10 +100,18 @@ class Ajax {
 
 	public function ajax_preview_debug(): void {
 		check_ajax_referer( 'wwml_media_nonce', 'nonce' );
+		if ( ! current_user_can( 'upload_files' ) ) {
+			wp_send_json_error( array( 'message' => 'No permission' ) );
+		}
+
 		$file_url = esc_url_raw( $_POST['file_url'] ?? '' );
-		
+
 		$log = "--- PREVIEW DEBUG START ---\n";
 		$log .= "File: $file_url\n";
+
+		if ( ! $this->is_allowed_remote_url( $file_url ) ) {
+			wp_send_json_error( array( 'message' => 'Invalid WebDAV file URL', 'debug' => $log ) );
+		}
 
 		$upload_dir = wp_upload_dir();
 		$cache_dir  = $upload_dir['basedir'] . '/wwml-cache';
@@ -102,27 +128,24 @@ class Ajax {
 		}
 
 		try {
-			$log .= "Attempting download via wp_remote_get...\n";
-			$response = wp_remote_get( $file_url, array(
-				'headers' => array(
-					'Authorization' => 'Basic ' . base64_encode( "$login:$password" ),
-				),
-				'timeout'   => 30,
-				'sslverify' => false,
-			) );
+			$tmp_file = wp_tempnam( $file_url );
+			if ( ! $tmp_file ) {
+				wp_send_json_error( array( 'message' => 'Unable to create temp file', 'debug' => $log ) );
+			}
+
+			$log .= "Attempting streamed download via wp_remote_get...\n";
+			$response = $this->download_preview_source( $file_url, $tmp_file, 30 );
 
 			if ( is_wp_error( $response ) ) {
 				$log .= "DOWNLOAD FAILED: " . $response->get_error_message() . "\n";
+				@unlink( $tmp_file );
 			} else {
 				$code = wp_remote_retrieve_response_code( $response );
 				$log .= "Server Response: $code\n";
 
 				if ( 200 === $code ) {
-					$image_data = wp_remote_retrieve_body( $response );
-					$tmp_file = wp_tempnam();
-					file_put_contents( $tmp_file, $image_data );
-					$log .= "Saved to temp file (" . strlen($image_data) . " bytes)\n";
-					
+					$log .= "Saved to temp file (" . filesize( $tmp_file ) . " bytes)\n";
+
 					if ( ! function_exists( 'wp_get_image_editor' ) ) {
 						require_once ABSPATH . 'wp-admin/includes/image.php';
 					}
@@ -142,6 +165,8 @@ class Ajax {
 						$log .= "EDITOR ERROR: " . $editor->get_error_message() . "\n";
 						unlink( $tmp_file );
 					}
+				} else {
+					@unlink( $tmp_file );
 				}
 			}
 		} catch ( \Exception $e ) {
@@ -153,12 +178,18 @@ class Ajax {
 	}
 
 	public function ajax_preview(): void {
+		check_ajax_referer( 'wwml_media_nonce', 'nonce' );
+
 		if ( ! current_user_can( 'upload_files' ) ) {
 			wp_die( 'No permission' );
 		}
 
 		$file_url = esc_url_raw( $_GET['file'] ?? '' );
 		if ( empty( $file_url ) ) {
+			wp_die();
+		}
+
+		if ( ! $this->is_allowed_remote_url( $file_url ) ) {
 			wp_die();
 		}
 
@@ -177,22 +208,14 @@ class Ajax {
 			exit;
 		}
 
-		$login    = get_option( 'wwml_login', '' );
-		$password = get_option( 'wwml_password', '' );
+		$tmp_file = wp_tempnam( $file_url );
+		if ( ! $tmp_file ) {
+			wp_die();
+		}
 
-		$response = wp_remote_get( $file_url, array(
-			'headers' => array(
-				'Authorization' => 'Basic ' . base64_encode( "$login:$password" ),
-			),
-			'timeout'   => 30,
-			'sslverify' => false,
-		) );
+		$response = $this->download_preview_source( $file_url, $tmp_file, 30 );
 
 		if ( ! is_wp_error( $response ) && 200 === wp_remote_retrieve_response_code( $response ) ) {
-			$image_data = wp_remote_retrieve_body( $response );
-			$tmp_file = wp_tempnam();
-			file_put_contents( $tmp_file, $image_data );
-			
 			if ( ! function_exists( 'wp_get_image_editor' ) ) {
 				require_once ABSPATH . 'wp-admin/includes/image.php';
 			}
@@ -206,9 +229,39 @@ class Ajax {
 				exit;
 			}
 			unlink( $tmp_file );
+		} else {
+			@unlink( $tmp_file );
 		}
 
 		wp_die();
 	}
-}
 
+	private function is_allowed_remote_url( string $file_url ): bool {
+		$client = new WebDavClient();
+
+		return $client->is_configured() && $client->is_url_allowed( $file_url );
+	}
+
+	private function download_preview_source( string $file_url, string $tmp_file, int $timeout ) {
+		$login    = get_option( 'wwml_login', '' );
+		$password = get_option( 'wwml_password', '' );
+
+		if ( empty( $login ) || empty( $password ) ) {
+			return new \WP_Error( 'wwml_credentials_missing', __( 'Credentials missing', 'wp-webdav-media-library' ) );
+		}
+
+		return wp_remote_get(
+			$file_url,
+			array(
+				'headers'     => array(
+					'Authorization' => 'Basic ' . base64_encode( "$login:$password" ),
+				),
+				'timeout'     => $timeout,
+				'sslverify'   => (bool) apply_filters( 'wwml_sslverify', false ),
+				'stream'      => true,
+				'filename'    => $tmp_file,
+				'redirection' => 0,
+			)
+		);
+	}
+}

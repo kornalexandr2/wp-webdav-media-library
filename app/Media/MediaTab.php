@@ -41,6 +41,7 @@ class MediaTab {
 			'importing'    => __( 'Importing...', 'wp-webdav-media-library' ),
 			'error'        => __( 'An error occurred.', 'wp-webdav-media-library' ),
 			'ajaxurl'      => admin_url( 'admin-ajax.php' ),
+			'debug'        => false,
 		) );
 	}
 
